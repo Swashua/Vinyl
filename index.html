@@ -1,0 +1,264 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Vinyl Showcase</title>
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+  <!-- Ambient backdrop lighting -->
+  <div class="ambient-glow"></div>
+  <div class="spotlight"></div>
+
+  <!-- Viewport: User is in the center of the circle of spines (Home page is 100% clean) -->
+  <main class="showcase-viewport" id="viewport">
+    <div class="carousel-scene" id="carouselScene">
+      <div class="carousel-ring" id="carouselRing">
+        <!-- Spines dynamically generated around the circle by app.js -->
+      </div>
+    </div>
+  </main>
+
+  <!-- Inspection Stage (Vinyl on Left, Tab on Right) -->
+  <div class="stage-backdrop" id="stageBackdrop" aria-hidden="true"></div>
+  <div class="inspection-stage" id="inspectionStage" aria-hidden="true">
+    <!-- Stage Album: Placed directly in inspection-stage for accurate viewport coordinates -->
+    <div class="stage-album" id="stageAlbum">
+      <!-- Spine preview before expansion -->
+      <div class="stage-spine-view">
+        <div class="spine-surface"></div>
+        <div class="spine-fold-left"></div>
+        <div class="spine-fold-right"></div>
+        <div class="spine-top-edge"></div>
+        <div class="spine-bottom-edge"></div>
+      </div>
+      <!-- Authentic black vinyl disc inside with rotating assembly -->
+      <div class="stage-disc" id="stageDisc">
+        <div class="disc-rotator" id="discRotator">
+          <div class="disc-grooves"></div>
+          <div class="disc-label" id="stageDiscLabel">
+            <div class="disc-label-rim"></div>
+            <div class="disc-label-text disc-label-top">SIDE A</div>
+            <div class="disc-label-text disc-label-bottom">33⅓ RPM • STEREO</div>
+            <div class="disc-label-dot disc-label-dot-left"></div>
+            <div class="disc-label-dot disc-label-dot-right"></div>
+            <div class="spindle-hole"></div>
+          </div>
+        </div>
+      </div>
+      <!-- Full square front jacket -->
+      <div class="stage-jacket" id="stageJacket">
+        <div class="jacket-surface" id="stageJacketSurface"></div>
+        <div class="jacket-ring-imprint"></div>
+        <div class="jacket-spine"></div>
+        <div class="jacket-opening"></div>
+      </div>
+    </div>
+
+    <!-- Responsive Layout Container: Centered when empty, 50/50 Split when loaded -->
+    <div class="stage-content-wrap mode-empty" id="stageContentWrap">
+      
+      <!-- Left Half / Column: Contains the Disc Anchor, centered in the left 50% -->
+      <div class="stage-half-col stage-col-left" id="stageColLeft">
+        <!-- Anchor Target: dictates stageAlbum's resting position (Center if empty / Left if loaded) -->
+        <div class="stage-vinyl-anchor" id="stageVinylAnchor"></div>
+      </div>
+
+      <!-- Right Half / Column: Contains the Search Bar (when empty) or Music Player & Tracklist (when loaded), centered in the right 50% -->
+      <div class="stage-half-col stage-col-right" id="stageColRight">
+        <!-- State A: Empty State Search Bar (Appears immediately when opening empty vinyl) -->
+        <div class="stage-empty-search" id="stageEmptySearch">
+        <div class="empty-search-card">
+          <div class="empty-search-header">
+            <div class="empty-badge-icon">
+              <svg viewBox="0 0 24 24" width="22" height="22" fill="currentColor">
+                <path d="M12 0C5.373 0 0 5.373 0 12s5.373 12 12 12 12-5.373 12-12S18.627 0 12 0zm5.503 17.308c-.215.353-.675.465-1.028.249-2.818-1.722-6.365-2.111-10.542-1.157-.402.092-.803-.16-.895-.562-.092-.403.159-.804.562-.896 4.571-1.045 8.492-.596 11.655 1.338.353.216.464.676.248 1.028zm1.47-3.264c-.27.44-.848.58-1.288.31-3.226-1.983-8.144-2.557-11.958-1.399-.496.15-1.025-.133-1.176-.63-.151-.496.133-1.025.63-1.176 4.364-1.324 9.776-.684 13.483 1.597.44.27.579.849.309 1.289zm.126-3.41c-3.869-2.297-10.248-2.508-13.941-1.387-.593.18-1.22-.164-1.399-.757-.18-.593.164-1.22.757-1.399 4.246-1.289 11.287-1.043 15.737 1.6c.533.316.707 1.011.392 1.544-.316.533-1.012.707-1.546.392z"/>
+              </svg>
+            </div>
+            <div class="empty-search-text">
+              <h3 class="empty-search-title">Empty Vinyl</h3>
+              <p class="empty-search-desc">Paste a Spotify album link to load its artwork and play songs</p>
+            </div>
+          </div>
+          
+          <form class="spotify-input-form" id="spotifyForm">
+            <div class="spotify-input-group">
+              <input 
+                type="url" 
+                id="spotifyUrlInput" 
+                class="spotify-input" 
+                placeholder="Paste Spotify album link..." 
+                aria-label="Spotify Album URL" 
+                spellcheck="false" 
+                autocomplete="off"
+                required
+              >
+              <button id="loadSpotifyBtn" class="spotify-load-btn" type="submit">
+                <span>Load Album</span>
+              </button>
+            </div>
+            <div id="spotifyErrorMsg" class="spotify-error-msg"></div>
+          </form>
+        </div>
+      </div>
+
+      <!-- State B: Loaded State Music Tab (Tracklist on the Right Hand Side) -->
+      <aside class="stage-music-tab" id="stageMusicTab" aria-label="Music Tab">
+        <div class="music-playing-state" id="musicPlayingState">
+          <div class="music-tab-header">
+            <div class="header-top-row">
+              <div class="now-playing-badge" id="nowPlayingBadge">
+                <span class="pulse-dot"></span>
+                <span id="tracklistBadgeText">Tracklist</span>
+              </div>
+              <div class="header-actions">
+                <button class="action-btn audio-play-btn" id="audioPlayToggleBtn" type="button" title="Play song with working volume control">
+                  <svg class="audio-btn-icon play-icon" viewBox="0 0 24 24" width="12" height="12" fill="currentColor">
+                    <polygon points="5 3 19 12 5 21 5 3"></polygon>
+                  </svg>
+                  <svg class="audio-btn-icon pause-icon" viewBox="0 0 24 24" width="12" height="12" fill="currentColor" style="display: none;">
+                    <rect x="6" y="4" width="4" height="16"></rect>
+                    <rect x="14" y="4" width="4" height="16"></rect>
+                  </svg>
+                  <span id="audioPlayBtnText">Play</span>
+                </button>
+                <button class="action-btn save-btn" id="saveAlbumBtn" type="button" title="Save song to shelf (stays after refreshing)">
+                  <svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+                    <path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z"></path>
+                    <polyline points="17 21 17 13 7 13 7 21"></polyline>
+                    <polyline points="7 3 7 8 15 8"></polyline>
+                  </svg>
+                  <span id="saveBtnText">Save</span>
+                </button>
+                <button class="action-btn edit-btn" id="editAlbumBtn" type="button" title="Edit / change song">
+                  <svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+                    <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"></path>
+                    <path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"></path>
+                  </svg>
+                  <span>Edit</span>
+                </button>
+              </div>
+            </div>
+            <h2 class="music-album-title" id="musicAlbumTitle">Album Title</h2>
+
+            <!-- Collapsible Inline Edit Bar to Change Song -->
+            <div class="inline-edit-bar" id="inlineEditBar">
+              <form id="inlineEditForm" class="inline-edit-form">
+                <input 
+                  type="url" 
+                  id="inlineEditInput" 
+                  class="inline-edit-input" 
+                  placeholder="Paste new Spotify album or track link..." 
+                  spellcheck="false" 
+                  autocomplete="off"
+                  required
+                >
+                <button type="submit" id="inlineEditSubmitBtn" class="inline-edit-submit">Update</button>
+                <button type="button" id="inlineEditCancelBtn" class="inline-edit-cancel" title="Close edit">✕</button>
+              </form>
+              <div class="inline-edit-footer">
+                <button type="button" id="clearAlbumBtn" class="clear-album-btn">Remove album from shelf</button>
+                <div id="inlineEditError" class="spotify-error-msg"></div>
+              </div>
+            </div>
+          </div>
+          <div class="music-player-wrapper" id="musicPlayerWrapper">
+            <!-- Native HTML5 audio element for actual real-time volume manipulation -->
+            <audio id="nativeAudioPlayer" preload="auto"></audio>
+
+            <!-- Native Spotify-Styled Player (With full volume control, seek bar, and tracklist) -->
+            <div class="native-player-card" id="nativePlayerCard">
+              <!-- Top Controls: Artwork, Title, Play/Pause, Prev, Next -->
+              <div class="player-hero-row">
+                <div class="player-cover-thumb" id="playerCoverThumb"></div>
+                <div class="player-track-info">
+                  <div class="player-track-title" id="playerTrackTitle">Select a track</div>
+                  <div class="player-track-artist" id="playerTrackArtist">Artist</div>
+                </div>
+                <div class="player-buttons-group">
+                  <button type="button" class="player-nav-btn" id="playerPrevBtn" title="Previous track">
+                    <svg viewBox="0 0 24 24" width="15" height="15" fill="currentColor">
+                      <polygon points="19 20 9 12 19 4 19 20"></polygon>
+                      <line x1="5" y1="19" x2="5" y2="5" stroke="currentColor" stroke-width="2.5"></line>
+                    </svg>
+                  </button>
+                  <button type="button" class="player-main-play-btn" id="playerPlayBtn" title="Play / Pause">
+                    <svg class="icon-play" viewBox="0 0 24 24" width="16" height="16" fill="currentColor">
+                      <polygon points="6 4 20 12 6 20 6 4"></polygon>
+                    </svg>
+                    <svg class="icon-pause" viewBox="0 0 24 24" width="16" height="16" fill="currentColor" style="display: none;">
+                      <rect x="6" y="4" width="4" height="16"></rect>
+                      <rect x="14" y="4" width="4" height="16"></rect>
+                    </svg>
+                  </button>
+                  <button type="button" class="player-nav-btn" id="playerNextBtn" title="Next track">
+                    <svg viewBox="0 0 24 24" width="15" height="15" fill="currentColor">
+                      <polygon points="5 4 15 12 5 20 5 4"></polygon>
+                      <line x1="19" y1="5" x2="19" y2="19" stroke="currentColor" stroke-width="2.5"></line>
+                    </svg>
+                  </button>
+                </div>
+              </div>
+
+              <!-- Playback Progress Bar (Matching Screenshot 025431) -->
+              <div class="playback-progress-section" id="playbackProgressSection">
+                <span class="progress-time" id="progressCurrentTime">0:00</span>
+                <div class="progress-bar-bg" id="progressBarBg" role="progressbar" title="Click or drag to seek">
+                  <div class="progress-bar-fill" id="progressBarFill" style="width: 0%;"></div>
+                  <div class="progress-bar-thumb" id="progressBarThumb" style="left: 0%;"></div>
+                </div>
+                <span class="progress-time" id="progressDurationTime">-0:30</span>
+              </div>
+
+              <!-- Thin Volume Slider Bar (Directly below progress bar, matching Screenshot 025431) -->
+              <div class="volume-slider-bar" id="volumeSliderBar" role="slider" aria-label="Volume" tabindex="0" title="Volume Scroller: Click, drag, or scroll mouse wheel anywhere">
+                <button type="button" class="volume-speaker-btn" id="volumeSpeakerBtn" title="Mute / Unmute" aria-label="Mute / Unmute">
+                  <svg class="volume-speaker-icon" id="volumeSpeakerIcon" viewBox="0 0 24 24" width="13" height="13" fill="currentColor">
+                    <path d="M3 9v6h4l5 5V4L7 9H3zm13.5 3c0-1.77-1.02-3.29-2.5-4.03v8.05c1.48-.73 2.5-2.25 2.5-4.02zM14 3.23v2.06c2.89.86 5 3.54 5 6.71s-2.11 5.85-5 6.71v2.06c4.01-.91 7-4.49 7-8.77s-2.99-7.86-7-8.77z"/>
+                  </svg>
+                </button>
+                <div class="volume-track-bg" id="volumeTrackBg">
+                  <div class="volume-track-fill" id="volumeTrackFill" style="width: 75%;"></div>
+                  <div class="volume-thumb" id="volumeThumb" style="left: 75%;"></div>
+                </div>
+                <div class="volume-tooltip" id="volumeTooltip">75%</div>
+              </div>
+
+              <!-- Taller Tracklist -->
+              <div class="native-tracklist-wrap" id="nativeTracklistWrap">
+                <div class="tracklist-header-label">Tracks</div>
+                <div class="tracklist-scroll-area" id="tracklistScrollArea">
+                  <!-- Tracks dynamically injected -->
+                </div>
+              </div>
+            </div>
+
+            <div class="music-player-frame" id="musicPlayerFrame" style="display:none;">
+              <!-- Spotify Embed fallback container -->
+            </div>
+          </div>
+        </div>
+      </aside>
+      </div>
+
+    </div>
+
+    <!-- Return button -->
+    <button class="stage-close-btn" id="stageCloseBtn" aria-label="Put album back in circle">
+      <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+        <line x1="18" y1="6" x2="6" y2="18"></line>
+        <line x1="6" y1="6" x2="18" y2="18"></line>
+      </svg>
+      <span>Return to circle</span>
+    </button>
+  </div>
+
+    <!-- Invisible Background Audio Host for Full Song Playback (No video UI) -->
+    <div id="ytAudioHost" style="position:fixed;top:-9999px;left:-9999px;width:200px;height:200px;opacity:0.001;pointer-events:none;"><div id="ytPlayer"></div></div>
+
+    <!-- YouTube IFrame Player API for Full Song Playback -->
+    <script src="https://www.youtube.com/iframe_api"></script>
+    <script src="app.js"></script>
+</body>
+</html>

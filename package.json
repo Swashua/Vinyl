@@ -1,0 +1,17 @@
+{
+  "name": "disc",
+  "version": "1.0.0",
+  "description": "Smooth animated showcase of blank vinyl albums with swipe physics and interactive pull-out inspection.",
+  "scripts": {
+    "start": "python server.py 3001",
+    "dev": "python server.py 3001"
+  },
+  "keywords": [
+    "vinyl",
+    "animation",
+    "gallery",
+    "interactive"
+  ],
+  "author": "",
+  "license": "MIT"
+}
