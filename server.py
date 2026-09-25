@@ -113,7 +113,7 @@ class DiscHTTPRequestHandler(http.server.SimpleHTTPRequestHandler):
             sp_id   = qs.get('id',   [''])[0].strip()
 
             # Strict SSRF & Input Validation: type must be valid enum, id must be alphanumeric base62
-            if not re.match(r'^(album|track|playlist|artist)$', sp_type) or not re.match(r'^[a-zA-Z0-9_-]{10,40}$', sp_id):
+            if not re.match(r'^(album|track|playlist|artist|episode|show)$', sp_type) or not re.match(r'^[a-zA-Z0-9_-]{10,40}$', sp_id):
                 self.send_response(400)
                 self.send_header('Content-Type', 'application/json')
                 self.send_header('Access-Control-Allow-Origin', '*')

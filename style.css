@@ -1785,10 +1785,19 @@ html, body {
   transform: translateX(-50%) translateY(19px) scale(0.97);
 }
 
-.inspection-stage.is-active .stage-close-btn {
+.inspection-stage.is-active .stage-content-wrap.mode-loaded ~ .stage-close-btn {
   opacity: 1;
   transform: translateX(-50%) translateY(0);
   pointer-events: auto;
+}
+
+/* Hide return button completely when trying to upload a song to an empty disk */
+.stage-content-wrap.mode-empty ~ .stage-close-btn,
+.inspection-stage.is-active .stage-content-wrap.mode-empty ~ .stage-close-btn {
+  opacity: 0 !important;
+  transform: translateX(-50%) translateY(18px) !important;
+  pointer-events: none !important;
+  visibility: hidden !important;
 }
 
 /* ==========================================================================

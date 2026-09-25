@@ -267,21 +267,42 @@
     if (!url) return null;
     url = url.trim();
 
-    // 1. Matches /playlist/ID, /album/ID, /track/ID anywhere in the URL (handles intl-xx and query params)
-    const webMatch = url.match(/(album|track|playlist)\/([a-zA-Z0-9]{15,35})/i);
+    // 1. Extract URL if text was copied with it (e.g. from mobile share sheet)
+    const urlMatch = url.match(/https?:\/\/[^\s]+/i);
+    const targetUrl = urlMatch ? urlMatch[0] : url;
+
+    // 2. Matches /(intl-xx/)?(album|track|playlist|artist|episode|show)/ID
+    const webMatch = targetUrl.match(/(?:intl-[a-z]{2,4}\/)?(album|track|playlist|artist|episode|show)\/([a-zA-Z0-9_-]{15,40})/i);
     if (webMatch) {
-      return { type: webMatch[1].toLowerCase(), id: webMatch[2] };
+      const type = webMatch[1].toLowerCase();
+      const id = webMatch[2];
+      return { 
+        type, 
+        id, 
+        cleanUrl: `https://open.spotify.com/${type}/${id}` 
+      };
     }
 
-    // 2. Matches spotify:playlist:ID, spotify:album:ID, spotify:track:ID
-    const uriMatch = url.match(/spotify:(album|track|playlist):([a-zA-Z0-9]{15,35})/i);
+    // 3. Matches spotify:(album|track|playlist|artist|episode|show):ID
+    const uriMatch = targetUrl.match(/spotify:(album|track|playlist|artist|episode|show):([a-zA-Z0-9_-]{15,40})/i);
     if (uriMatch) {
-      return { type: uriMatch[1].toLowerCase(), id: uriMatch[2] };
+      const type = uriMatch[1].toLowerCase();
+      const id = uriMatch[2];
+      return { 
+        type, 
+        id, 
+        cleanUrl: `https://open.spotify.com/${type}/${id}` 
+      };
     }
 
-    // 3. Fallback for direct 22-char Spotify ID
-    if (/^[a-zA-Z0-9]{22}$/.test(url)) {
-      return { type: 'playlist', id: url };
+    // 4. Matches direct 22-char Spotify ID
+    const rawMatch = targetUrl.match(/^[a-zA-Z0-9]{22}$/);
+    if (rawMatch) {
+      return { 
+        type: 'track', 
+        id: targetUrl, 
+        cleanUrl: `https://open.spotify.com/track/${targetUrl}` 
+      };
     }
 
     return null;
@@ -307,12 +328,13 @@
 
     const parsed = parseSpotifyUrl(url);
     if (!parsed) {
-      const errMsg = 'Please enter a valid Spotify link (album or playlist).';
+      const errMsg = 'Please enter a valid Spotify link (song, album, or playlist).';
       if (isInline) inlineEditError.textContent = errMsg;
       else spotifyErrorMsg.textContent = errMsg;
       return;
     }
 
+    const cleanSpotifyUrl = parsed.cleanUrl || `https://open.spotify.com/${parsed.type}/${parsed.id}`;
     let albumData = null;
 
     if (isInline) {
@@ -341,24 +363,24 @@
         console.warn('Backend Spotify fetch error, falling back to direct oEmbed:', backendErr);
       }
 
-      // 2. Client-side fallback: Spotify official public oEmbed API (CORS enabled)
-      if (!data) {
+      // 2. Client-side direct Spotify official public oEmbed API (CORS enabled)
+      if (!data || !data.coverUrl || !data.title) {
         try {
-          const oembedUrl = `https://open.spotify.com/oembed?url=${encodeURIComponent(url)}`;
+          const oembedUrl = `https://open.spotify.com/oembed?url=${encodeURIComponent(cleanSpotifyUrl)}`;
           const oembedRes = await fetch(oembedUrl);
           if (oembedRes.ok) {
             const odata = await oembedRes.json();
             data = {
-              title: odata.title || (parsed.type === 'playlist' ? 'Custom Playlist' : 'Spotify Music'),
-              artist: odata.author_name || '',
-              coverUrl: odata.thumbnail_url || '',
-              tracks: [
+              title: (data && data.title) || odata.title || (parsed.type === 'playlist' ? 'Custom Playlist' : 'Spotify Music'),
+              artist: (data && data.artist) || odata.author_name || '',
+              coverUrl: (data && data.coverUrl) || odata.thumbnail_url || '',
+              tracks: (data && data.tracks && data.tracks.length > 0) ? data.tracks : [
                 {
                   title: odata.title || 'Track 1',
                   artist: odata.author_name || '',
                   durationMs: 210000,
                   durationStr: '3:30',
-                  spotifyUri: url,
+                  spotifyUri: cleanSpotifyUrl,
                   isPlayable: true
                 }
               ]
@@ -377,7 +399,7 @@
         title: data.title || (parsed.type === 'playlist' ? 'Custom Playlist' : 'Spotify Music'),
         artist: data.artist || '',
         coverUrl: data.coverUrl || '',
-        spotifyUrl: url,
+        spotifyUrl: cleanSpotifyUrl,
         type: parsed.type,
         id: parsed.id,
         tracks: data.tracks || []

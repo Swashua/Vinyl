@@ -3,7 +3,6 @@
  */
 
 module.exports = async (req, res) => {
-  // Set CORS and Security Headers
   res.setHeader('Access-Control-Allow-Origin', '*');
   res.setHeader('Access-Control-Allow-Methods', 'GET, OPTIONS');
   res.setHeader('Access-Control-Allow-Headers', 'Content-Type');
@@ -15,12 +14,11 @@ module.exports = async (req, res) => {
 
   const { type, id } = req.query;
 
-  // Strict validation
   const spType = String(type || '').trim().toLowerCase();
   const spId = String(id || '').trim();
 
-  if (!/^(album|track|playlist|artist)$/.test(spType) || !/^[a-zA-Z0-9_-]{10,40}$/.test(spId)) {
-    return res.status(400).json({ error: 'Invalid Spotify entity type or id format' });
+  if (!/^(album|track|playlist|artist|episode|show)$/.test(spType) || !/^[a-zA-Z0-9_-]{10,40}$/.test(spId)) {
+    return res.status(400).json({ error: 'Invalid Spotify link format' });
   }
 
   try {
@@ -66,7 +64,7 @@ module.exports = async (req, res) => {
       coverUrl = entity.images[0].url || '';
     }
 
-    // Fallback to oEmbed for metadata if needed
+    // Fallback to official oEmbed for metadata
     if (!coverUrl || !entity.title) {
       try {
         const oembedUrl = `https://open.spotify.com/oembed?url=https://open.spotify.com/${spType}/${spId}`;
@@ -77,6 +75,7 @@ module.exports = async (req, res) => {
           const odata = await oembedRes.json();
           if (!coverUrl && odata.thumbnail_url) coverUrl = odata.thumbnail_url;
           if (!entity.title && odata.title) entity.title = odata.title;
+          if (!entity.subtitle && odata.author_name) entity.subtitle = odata.author_name;
         }
       } catch (_) {}
     }
@@ -85,9 +84,9 @@ module.exports = async (req, res) => {
     const rawTracks = Array.isArray(entity.trackList) ? entity.trackList : [];
     let tracks = rawTracks.map(t => ({
       title: String(t.title || t.name || ''),
-      artist: String(t.subtitle || t.artist || ''),
+      artist: String(t.subtitle || t.artist || entity.subtitle || ''),
       durationMs: Number(t.duration || t.durationMs || 0),
-      spotifyUri: String(t.uri || ''),
+      spotifyUri: String(t.uri || `https://open.spotify.com/${spType}/${spId}`),
       isPlayable: Boolean(t.isPlayable !== false)
     })).filter(t => t.title.length > 0);
 
@@ -98,9 +97,9 @@ module.exports = async (req, res) => {
           if (Array.isArray(obj.trackList) && obj.trackList.length > 0) {
             return obj.trackList.map(item => ({
               title: String(item.title || item.name || ''),
-              artist: String(item.subtitle || item.artist || ''),
+              artist: String(item.subtitle || item.artist || entity.subtitle || ''),
               durationMs: Number(item.duration || item.durationMs || 0),
-              spotifyUri: String(item.uri || ''),
+              spotifyUri: String(item.uri || `https://open.spotify.com/${spType}/${spId}`),
               isPlayable: Boolean(item.isPlayable !== false)
             })).filter(t => t.title.length > 0);
           }
@@ -114,20 +113,20 @@ module.exports = async (req, res) => {
       tracks = deepFindTracks(data);
     }
 
-    // If single track
+    // If single track or entity
     if (tracks.length === 0 && (entity.title || entity.name)) {
       tracks.push({
-        title: String(entity.title || entity.name || ''),
+        title: String(entity.title || entity.name || 'Track 1'),
         artist: String(entity.subtitle || entity.artist || ''),
-        durationMs: Number(entity.duration || entity.durationMs || 0),
-        spotifyUri: String(entity.uri || ''),
-        isPlayable: Boolean(entity.isPlayable !== false)
+        durationMs: Number(entity.duration || entity.durationMs || 210000),
+        spotifyUri: `https://open.spotify.com/${spType}/${spId}`,
+        isPlayable: true
       });
     }
 
     const result = {
       title: String(entity.title || entity.name || 'Spotify Music'),
-      artist: String(entity.subtitle || ''),
+      artist: String(entity.subtitle || entity.artist || ''),
       coverUrl: coverUrl,
       tracks: tracks
     };
@@ -136,6 +135,25 @@ module.exports = async (req, res) => {
     return res.status(200).json(result);
 
   } catch (err) {
+    // If anything throws, return basic fallback instead of 500
+    try {
+      const oembedRes = await fetch(`https://open.spotify.com/oembed?url=https://open.spotify.com/${spType}/${spId}`);
+      if (oembedRes.ok) {
+        const odata = await oembedRes.json();
+        return res.status(200).json({
+          title: odata.title || 'Spotify Music',
+          artist: odata.author_name || '',
+          coverUrl: odata.thumbnail_url || '',
+          tracks: [{
+            title: odata.title || 'Track 1',
+            artist: odata.author_name || '',
+            durationMs: 210000,
+            spotifyUri: `https://open.spotify.com/${spType}/${spId}`,
+            isPlayable: true
+          }]
+        });
+      }
+    } catch (_) {}
     return res.status(500).json({ error: 'Failed to process Spotify request' });
   }
 };
