@@ -326,15 +326,51 @@
     }
 
     try {
-      // 1. Directly fetch playlist or album details from backend
-      const res = await fetch(`/api/spotify-tracks?type=${parsed.type}&id=${parsed.id}`, { cache: 'no-store' });
-      if (!res.ok) {
-        throw new Error('Could not fetch Spotify playlist. Please ensure it is public.');
+      let data = null;
+
+      // 1. Try backend/serverless endpoint first
+      try {
+        const res = await fetch(`/api/spotify-tracks?type=${parsed.type}&id=${parsed.id}`, { cache: 'no-store' });
+        if (res.ok) {
+          const json = await res.json();
+          if (json && !json.error && ((json.tracks && json.tracks.length > 0) || json.coverUrl || json.title)) {
+            data = json;
+          }
+        }
+      } catch (backendErr) {
+        console.warn('Backend Spotify fetch error, falling back to direct oEmbed:', backendErr);
       }
 
-      const data = await res.json();
-      if (!data || (data.error && (!data.tracks || data.tracks.length === 0))) {
-        throw new Error(data.error || 'No tracks found in this Spotify link.');
+      // 2. Client-side fallback: Spotify official public oEmbed API (CORS enabled)
+      if (!data) {
+        try {
+          const oembedUrl = `https://open.spotify.com/oembed?url=${encodeURIComponent(url)}`;
+          const oembedRes = await fetch(oembedUrl);
+          if (oembedRes.ok) {
+            const odata = await oembedRes.json();
+            data = {
+              title: odata.title || (parsed.type === 'playlist' ? 'Custom Playlist' : 'Spotify Music'),
+              artist: odata.author_name || '',
+              coverUrl: odata.thumbnail_url || '',
+              tracks: [
+                {
+                  title: odata.title || 'Track 1',
+                  artist: odata.author_name || '',
+                  durationMs: 210000,
+                  durationStr: '3:30',
+                  spotifyUri: url,
+                  isPlayable: true
+                }
+              ]
+            };
+          }
+        } catch (oembedErr) {
+          console.warn('Spotify oEmbed fetch error:', oembedErr);
+        }
+      }
+
+      if (!data) {
+        throw new Error('Could not fetch Spotify link. Please ensure it is a valid, public Spotify URL.');
       }
 
       albumData = {
@@ -1440,6 +1476,34 @@
           }
         } catch (err) {
           console.warn('[Disc] Spotify track fetch error:', err);
+        }
+
+        // Direct oEmbed fallback if tracks array is still empty
+        if (tracks.length === 0 && albumData.spotifyUrl) {
+          try {
+            const oembedRes = await fetch(`https://open.spotify.com/oembed?url=${encodeURIComponent(albumData.spotifyUrl)}`);
+            if (oembedRes.ok) {
+              const odata = await oembedRes.json();
+              if (odata.thumbnail_url && !albumData.coverUrl) {
+                albumData.coverUrl = odata.thumbnail_url;
+                if (playerCoverThumb) {
+                  playerCoverThumb.style.backgroundImage = `url('${odata.thumbnail_url}')`;
+                }
+                extractDominantColor(odata.thumbnail_url).then(([r, g, b]) => {
+                  setSceneBackgroundColor(r, g, b, 0.58);
+                });
+              }
+              tracks = [{
+                id: albumData.spotifyUrl,
+                number: 1,
+                title: odata.title || albumData.title || 'Track 1',
+                artist: odata.author_name || albumData.artist || '',
+                album: albumData.title,
+                durationMs: 210000,
+                durationStr: '3:30'
+              }];
+            }
+          } catch (_) {}
         }
       }
     }
