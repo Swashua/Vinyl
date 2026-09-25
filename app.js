@@ -440,22 +440,8 @@
         inlineEditBar.classList.remove('is-open');
       }
 
-      // 4. Force reflow so stageVinylAnchor is in its loaded left-column position
-      void stageVinylAnchor.offsetWidth;
-      const leftAnchorRect = stageVinylAnchor.getBoundingClientRect();
-
-      // 5. Smooth physical animation: vinyl moves from center to the left!
-      stageAlbum.style.transition = `
-        left 0.75s cubic-bezier(0.16, 1, 0.3, 1),
-        top 0.75s cubic-bezier(0.16, 1, 0.3, 1),
-        width 0.75s cubic-bezier(0.16, 1, 0.3, 1),
-        height 0.75s cubic-bezier(0.16, 1, 0.3, 1),
-        transform 0.75s cubic-bezier(0.16, 1, 0.3, 1)
-      `;
-      stageAlbum.style.left = `${leftAnchorRect.left}px`;
-      stageAlbum.style.top = `${leftAnchorRect.top}px`;
-      stageAlbum.style.width = `${leftAnchorRect.height}px`;
-      stageAlbum.style.height = `${leftAnchorRect.height}px`;
+      // 4. Smooth physical animation: vinyl moves smoothly into place!
+      updateStageAlbumPosition(true);
 
     } catch (err) {
       console.error('Failed to load Spotify album:', err);
@@ -503,21 +489,45 @@
     }
   }
 
-  // --- Collapse / Expand Music Tab Drawer & Center / Split Vinyl Album ---
-  function setMusicTabCollapsed(collapsed, animate = true) {
-    if (!activeAlbum || !stageContentWrap || !stageContentWrap.classList.contains('mode-loaded')) return;
+  // --- Calculate Screen Coordinates for Stage Album (Pixel-Perfect Center / Split) ---
+  function getStageAlbumTargetRect(collapsed) {
+    const stageSize = parseFloat(getComputedStyle(document.documentElement).getPropertyValue('--stage-size')) || 460;
+    const w = window.innerWidth;
+    const h = window.innerHeight;
+    const isMobile = w <= 680;
 
-    stageContentWrap.classList.toggle('is-tab-collapsed', collapsed);
+    let targetLeft, targetTop;
 
-    if (stageTabToggle) {
-      stageTabToggle.title = collapsed ? 'Show tracks panel (expand)' : 'Hide tracks panel (center vinyl)';
-      stageTabToggle.setAttribute('aria-expanded', String(!collapsed));
-      stageTabToggle.classList.toggle('is-collapsed', collapsed);
+    if (isMobile) {
+      // Mobile: Centered horizontally near top/center
+      const visualWidth = stageSize * 1.35;
+      targetLeft = Math.max(12, (w - visualWidth) / 2);
+      targetTop = Math.max(60, (h - stageSize) / 2 - (collapsed ? 0 : 60));
+    } else if (collapsed || (stageContentWrap && stageContentWrap.classList.contains('mode-empty'))) {
+      // Centered Mode: Entire visual span of Jacket + Disc (1.46x) is centered horizontally in viewport
+      const totalVisualSpan = stageSize * 1.46;
+      targetLeft = (w - totalVisualSpan) / 2;
+      targetTop = (h - stageSize) / 2;
+    } else {
+      // Split 50/50 Loaded Mode: Entire visual span is centered in the LEFT 50% of viewport
+      const halfW = w / 2;
+      const totalVisualSpan = stageSize * 1.46;
+      targetLeft = (halfW - totalVisualSpan) / 2;
+      targetTop = (h - stageSize) / 2;
     }
 
-    // Force layout reflow so stageVinylAnchor updates to new width / position
-    void stageVinylAnchor.offsetWidth;
-    const anchorRect = stageVinylAnchor.getBoundingClientRect();
+    return {
+      left: Math.round(targetLeft),
+      top: Math.round(targetTop),
+      size: Math.round(stageSize)
+    };
+  }
+
+  function updateStageAlbumPosition(animate = true) {
+    if (!activeAlbum || !stageAlbum || stageAlbum.style.display === 'none') return;
+
+    const isCollapsed = stageContentWrap ? stageContentWrap.classList.contains('is-tab-collapsed') : false;
+    const target = getStageAlbumTargetRect(isCollapsed);
 
     if (animate) {
       stageAlbum.style.transition = `
@@ -531,10 +541,25 @@
       stageAlbum.style.transition = 'none';
     }
 
-    stageAlbum.style.left = `${anchorRect.left}px`;
-    stageAlbum.style.top = `${anchorRect.top}px`;
-    stageAlbum.style.width = `${anchorRect.height}px`;
-    stageAlbum.style.height = `${anchorRect.height}px`;
+    stageAlbum.style.left = `${target.left}px`;
+    stageAlbum.style.top = `${target.top}px`;
+    stageAlbum.style.width = `${target.size}px`;
+    stageAlbum.style.height = `${target.size}px`;
+  }
+
+  // --- Collapse / Expand Music Tab Drawer & Center / Split Vinyl Album ---
+  function setMusicTabCollapsed(collapsed, animate = true) {
+    if (!activeAlbum || !stageContentWrap || !stageContentWrap.classList.contains('mode-loaded')) return;
+
+    stageContentWrap.classList.toggle('is-tab-collapsed', collapsed);
+
+    if (stageTabToggle) {
+      stageTabToggle.title = collapsed ? 'Show tracklist & player' : 'Hide tracklist (center vinyl)';
+      stageTabToggle.setAttribute('aria-expanded', String(!collapsed));
+      stageTabToggle.classList.toggle('is-collapsed', collapsed);
+    }
+
+    updateStageAlbumPosition(animate);
   }
 
   // --- Swiping & Dragging Event Handlers (Real Velocity-Based Physics) ---
@@ -747,8 +772,8 @@
     // Force layout reflow
     void stageAlbum.offsetWidth;
 
-    // 5. Target position: Read from stageVinylAnchor (Center if empty / Left if loaded)
-    const anchorRect = stageVinylAnchor.getBoundingClientRect();
+    // 5. Target position: Get exact calculated target
+    const target = getStageAlbumTargetRect(false);
 
     // 6. Smooth physical spring curve into place
     stageAlbum.style.transition = `
@@ -759,10 +784,10 @@
       transform 0.65s cubic-bezier(0.16, 1, 0.3, 1)
     `;
 
-    stageAlbum.style.left = `${anchorRect.left}px`;
-    stageAlbum.style.top = `${anchorRect.top}px`;
-    stageAlbum.style.width = `${anchorRect.height}px`;
-    stageAlbum.style.height = `${anchorRect.height}px`;
+    stageAlbum.style.left = `${target.left}px`;
+    stageAlbum.style.top = `${target.top}px`;
+    stageAlbum.style.width = `${target.size}px`;
+    stageAlbum.style.height = `${target.size}px`;
     stageAlbum.classList.add('is-expanded');
     stageAlbum.style.transform = 'translate3d(0, 0, 180px) rotateY(0deg) scale(1)';
 
@@ -938,19 +963,7 @@
     setSceneBackgroundColor(tr, tg, tb, 0.42);
 
     // Center vinyl smoothly
-    void stageVinylAnchor.offsetWidth;
-    const centerAnchorRect = stageVinylAnchor.getBoundingClientRect();
-    stageAlbum.style.transition = `
-      left 0.65s cubic-bezier(0.16, 1, 0.3, 1),
-      top 0.65s cubic-bezier(0.16, 1, 0.3, 1),
-      width 0.65s cubic-bezier(0.16, 1, 0.3, 1),
-      height 0.65s cubic-bezier(0.16, 1, 0.3, 1),
-      transform 0.65s cubic-bezier(0.16, 1, 0.3, 1)
-    `;
-    stageAlbum.style.left = `${centerAnchorRect.left}px`;
-    stageAlbum.style.top = `${centerAnchorRect.top}px`;
-    stageAlbum.style.width = `${centerAnchorRect.height}px`;
-    stageAlbum.style.height = `${centerAnchorRect.height}px`;
+    updateStageAlbumPosition(true);
 
     setTimeout(() => {
       spotifyUrlInput.focus();
@@ -1016,16 +1029,7 @@
     updateRadius();
     updateLightingAndVisibility();
     if (activeAlbum && !isTransitioning) {
-      if (stageContentWrap && stageContentWrap.classList.contains('mode-loaded')) {
-        setMusicTabCollapsed(stageContentWrap.classList.contains('is-tab-collapsed'), false);
-      } else {
-        const anchorRect = stageVinylAnchor.getBoundingClientRect();
-        stageAlbum.style.transition = 'none';
-        stageAlbum.style.left = `${anchorRect.left}px`;
-        stageAlbum.style.top = `${anchorRect.top}px`;
-        stageAlbum.style.width = `${anchorRect.height}px`;
-        stageAlbum.style.height = `${anchorRect.height}px`;
-      }
+      updateStageAlbumPosition(false);
     }
   });
 

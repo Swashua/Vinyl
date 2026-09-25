@@ -921,8 +921,7 @@ html, body {
   height: clamp(560px, min(42vw, 84vh), 800px);
   max-height: 88vh;
   box-sizing: border-box;
-  position: relative;
-  overflow: visible;
+  overflow: hidden;
   background: rgba(14, 16, 24, 0.9);
   backdrop-filter: blur(28px);
   -webkit-backdrop-filter: blur(28px);
@@ -937,80 +936,79 @@ html, body {
   justify-content: flex-start;
   gap: 12px;
   pointer-events: auto;
-  transition: transform 0.75s cubic-bezier(0.16, 1, 0.3, 1), opacity 0.4s ease;
+  transition: transform 0.65s cubic-bezier(0.16, 1, 0.3, 1), opacity 0.4s ease;
   z-index: 120;
 }
 
 /* Tab Drawer Collapsed to Sidebar State */
 .stage-content-wrap.mode-loaded.is-tab-collapsed .stage-music-tab {
-  transform: translateX(calc(100% + 50px));
+  transform: translateX(calc(100% + 80px));
+  opacity: 0;
   pointer-events: none;
 }
 
-/* Floating Sidebar Drawer Pull Handle (Arrow Key toggle) */
+/* Floating Sidebar Drawer Pull Handle (Arrow Key toggle on right sidebar edge) */
 .stage-tab-toggle {
-  position: absolute;
-  left: -44px;
+  position: fixed;
+  right: clamp(540px, 38vw, 680px);
   top: 50%;
   transform: translateY(-50%);
-  width: 44px;
-  min-height: 94px;
+  z-index: 150;
+  display: none;
   border-radius: 20px 0 0 20px;
   background: rgba(14, 16, 24, 0.94);
   backdrop-filter: blur(28px);
   -webkit-backdrop-filter: blur(28px);
-  border: 1px solid rgba(255, 255, 255, 0.16);
+  border: 1px solid rgba(255, 255, 255, 0.18);
   border-right: none;
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  justify-content: center;
-  gap: 7px;
-  color: #e1e3ec;
+  color: #ffffff;
+  padding: 14px 10px;
   cursor: pointer;
-  z-index: 130;
-  padding: 12px 6px;
   box-shadow: 
-    -10px 0 30px rgba(0, 0, 0, 0.7),
-    inset 0 0 0 1px rgba(255, 255, 255, 0.06);
+    -10px 0 32px rgba(0, 0, 0, 0.8),
+    inset 0 0 0 1px rgba(255, 255, 255, 0.08);
   transition: 
+    right 0.65s cubic-bezier(0.16, 1, 0.3, 1),
     transform 0.25s cubic-bezier(0.16, 1, 0.3, 1),
     background 0.25s ease,
     border-color 0.25s ease,
     color 0.25s ease,
     box-shadow 0.25s ease;
   user-select: none;
-  pointer-events: auto !important;
+  pointer-events: auto;
+}
+
+/* Only display drawer handle when stage is loaded with music */
+.inspection-stage.is-active .stage-content-wrap.mode-loaded ~ .stage-tab-toggle {
+  display: flex;
+}
+
+.stage-tab-toggle .toggle-pill-inner {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 7px;
 }
 
 .stage-tab-toggle:hover {
   background: rgba(20, 24, 36, 0.98);
-  border-color: rgba(29, 185, 84, 0.5);
+  border-color: rgba(29, 185, 84, 0.6);
   color: var(--spotify-green);
   box-shadow: 
-    -12px 0 36px rgba(29, 185, 84, 0.3),
-    -6px 0 20px rgba(0, 0, 0, 0.8);
+    -14px 0 40px rgba(29, 185, 84, 0.35),
+    -6px 0 24px rgba(0, 0, 0, 0.85);
+  transform: translateY(-50%) translateX(-4px);
 }
 
 .stage-tab-toggle:active {
-  transform: translateY(-50%) scale(0.96);
+  transform: translateY(-50%) scale(0.95);
 }
 
-/* Hover nudge when collapsed */
-.stage-content-wrap.mode-loaded.is-tab-collapsed .stage-tab-toggle:hover {
-  transform: translateY(-50%) translateX(-6px);
-}
-
-.toggle-icon-wrap {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  color: inherit;
-  transition: transform 0.2s ease;
-}
-
-.stage-tab-toggle:hover .toggle-icon-wrap {
-  transform: scale(1.18);
+/* Position when tab is collapsed to sidebar */
+.stage-content-wrap.mode-loaded.is-tab-collapsed ~ .stage-tab-toggle,
+.stage-tab-toggle.is-collapsed {
+  right: 0px !important;
 }
 
 .toggle-icon-collapse {
@@ -1021,20 +1019,22 @@ html, body {
   display: none;
 }
 
-.stage-content-wrap.mode-loaded.is-tab-collapsed .toggle-icon-collapse {
+.stage-content-wrap.mode-loaded.is-tab-collapsed ~ .stage-tab-toggle .toggle-icon-collapse,
+.stage-tab-toggle.is-collapsed .toggle-icon-collapse {
   display: none;
 }
 
-.stage-content-wrap.mode-loaded.is-tab-collapsed .toggle-icon-expand {
+.stage-content-wrap.mode-loaded.is-tab-collapsed ~ .stage-tab-toggle .toggle-icon-expand,
+.stage-tab-toggle.is-collapsed .toggle-icon-expand {
   display: block;
 }
 
 .stage-tab-toggle .toggle-pulse-dot {
-  width: 6px;
-  height: 6px;
+  width: 7px;
+  height: 7px;
   border-radius: 50%;
   background: var(--spotify-green);
-  box-shadow: 0 0 8px var(--spotify-green);
+  box-shadow: 0 0 10px var(--spotify-green);
   display: none;
 }
 
@@ -1046,11 +1046,11 @@ html, body {
 .stage-tab-toggle .toggle-text {
   writing-mode: vertical-rl;
   text-orientation: mixed;
-  font-size: 10px;
+  font-size: 10.5px;
   font-weight: 700;
-  letter-spacing: 0.14em;
+  letter-spacing: 0.16em;
   text-transform: uppercase;
-  color: rgba(255, 255, 255, 0.72);
+  color: rgba(255, 255, 255, 0.75);
   transition: color 0.2s ease;
 }
 
