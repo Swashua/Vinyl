@@ -483,6 +483,7 @@ html, body {
   box-sizing: border-box;
   padding: 24px;
   pointer-events: none;
+  transition: flex 0.75s cubic-bezier(0.16, 1, 0.3, 1), width 0.75s cubic-bezier(0.16, 1, 0.3, 1);
 }
 
 /* Right Half: Exactly 50% width, 100% height, tracklist centered in the middle of the right side */
@@ -497,6 +498,21 @@ html, body {
   box-sizing: border-box;
   padding: 24px;
   pointer-events: none;
+  transition: flex 0.75s cubic-bezier(0.16, 1, 0.3, 1), width 0.75s cubic-bezier(0.16, 1, 0.3, 1), padding 0.75s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+/* Collapsed Tab Mode: Left column expands to 100vw, horizontally centering the vinyl disc */
+.stage-content-wrap.mode-loaded.is-tab-collapsed .stage-col-left {
+  flex: 0 0 100vw;
+  width: 100vw;
+}
+
+.stage-content-wrap.mode-loaded.is-tab-collapsed .stage-col-right {
+  flex: 0 0 0px;
+  width: 0px;
+  padding: 0;
+  margin: 0;
+  overflow: visible;
 }
 
 .stage-content-wrap.mode-loaded .stage-music-tab {
@@ -905,7 +921,8 @@ html, body {
   height: clamp(560px, min(42vw, 84vh), 800px);
   max-height: 88vh;
   box-sizing: border-box;
-  overflow: hidden;
+  position: relative;
+  overflow: visible;
   background: rgba(14, 16, 24, 0.9);
   backdrop-filter: blur(28px);
   -webkit-backdrop-filter: blur(28px);
@@ -920,13 +937,138 @@ html, body {
   justify-content: flex-start;
   gap: 12px;
   pointer-events: auto;
-  animation: slideInTab 0.55s var(--ease-spring);
+  transition: transform 0.75s cubic-bezier(0.16, 1, 0.3, 1), opacity 0.4s ease;
   z-index: 120;
 }
 
-@keyframes slideInTab {
-  from { opacity: 0; transform: translateX(36px) scale(0.96); }
-  to { opacity: 1; transform: translateX(0) scale(1); }
+/* Tab Drawer Collapsed to Sidebar State */
+.stage-content-wrap.mode-loaded.is-tab-collapsed .stage-music-tab {
+  transform: translateX(calc(100% + 50px));
+  pointer-events: none;
+}
+
+/* Floating Sidebar Drawer Pull Handle (Arrow Key toggle) */
+.stage-tab-toggle {
+  position: absolute;
+  left: -44px;
+  top: 50%;
+  transform: translateY(-50%);
+  width: 44px;
+  min-height: 94px;
+  border-radius: 20px 0 0 20px;
+  background: rgba(14, 16, 24, 0.94);
+  backdrop-filter: blur(28px);
+  -webkit-backdrop-filter: blur(28px);
+  border: 1px solid rgba(255, 255, 255, 0.16);
+  border-right: none;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 7px;
+  color: #e1e3ec;
+  cursor: pointer;
+  z-index: 130;
+  padding: 12px 6px;
+  box-shadow: 
+    -10px 0 30px rgba(0, 0, 0, 0.7),
+    inset 0 0 0 1px rgba(255, 255, 255, 0.06);
+  transition: 
+    transform 0.25s cubic-bezier(0.16, 1, 0.3, 1),
+    background 0.25s ease,
+    border-color 0.25s ease,
+    color 0.25s ease,
+    box-shadow 0.25s ease;
+  user-select: none;
+  pointer-events: auto !important;
+}
+
+.stage-tab-toggle:hover {
+  background: rgba(20, 24, 36, 0.98);
+  border-color: rgba(29, 185, 84, 0.5);
+  color: var(--spotify-green);
+  box-shadow: 
+    -12px 0 36px rgba(29, 185, 84, 0.3),
+    -6px 0 20px rgba(0, 0, 0, 0.8);
+}
+
+.stage-tab-toggle:active {
+  transform: translateY(-50%) scale(0.96);
+}
+
+/* Hover nudge when collapsed */
+.stage-content-wrap.mode-loaded.is-tab-collapsed .stage-tab-toggle:hover {
+  transform: translateY(-50%) translateX(-6px);
+}
+
+.toggle-icon-wrap {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: inherit;
+  transition: transform 0.2s ease;
+}
+
+.stage-tab-toggle:hover .toggle-icon-wrap {
+  transform: scale(1.18);
+}
+
+.toggle-icon-collapse {
+  display: block;
+}
+
+.toggle-icon-expand {
+  display: none;
+}
+
+.stage-content-wrap.mode-loaded.is-tab-collapsed .toggle-icon-collapse {
+  display: none;
+}
+
+.stage-content-wrap.mode-loaded.is-tab-collapsed .toggle-icon-expand {
+  display: block;
+}
+
+.stage-tab-toggle .toggle-pulse-dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--spotify-green);
+  box-shadow: 0 0 8px var(--spotify-green);
+  display: none;
+}
+
+.stage-tab-toggle.is-playing .toggle-pulse-dot {
+  display: block;
+  animation: pulseGreen 1.8s infinite;
+}
+
+.stage-tab-toggle .toggle-text {
+  writing-mode: vertical-rl;
+  text-orientation: mixed;
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: rgba(255, 255, 255, 0.72);
+  transition: color 0.2s ease;
+}
+
+.stage-tab-toggle:hover .toggle-text {
+  color: #ffffff;
+}
+
+/* Collapse button in header row */
+.collapse-tab-btn {
+  background: rgba(255, 255, 255, 0.06);
+  border-color: rgba(255, 255, 255, 0.12);
+  color: rgba(255, 255, 255, 0.75);
+}
+
+.collapse-tab-btn:hover {
+  background: rgba(255, 255, 255, 0.14);
+  border-color: rgba(255, 255, 255, 0.25);
+  color: #ffffff;
 }
 
 .spotify-input-form {
@@ -2799,15 +2941,48 @@ html, body {
   }
 
   .stage-content-wrap.mode-loaded {
-    padding: 24px 12px 100px;
-    gap: 20px;
+    padding: 0;
+    gap: 0;
+    position: relative;
+    overflow: hidden;
+  }
+
+  .stage-content-wrap.mode-loaded .stage-col-left {
+    width: 100vw;
+    flex: 0 0 100vw;
+    padding: 12px;
+  }
+
+  .stage-content-wrap.mode-loaded .stage-col-right {
+    position: fixed;
+    right: 0;
+    top: 0;
+    bottom: 0;
+    width: auto;
+    flex: none;
+    padding: 0;
+    z-index: 130;
+    pointer-events: none;
   }
 
   .stage-music-tab {
-    width: 100%;
-    max-height: none;
-    border-radius: 18px;
-    padding: 18px 14px;
+    width: min(92vw, 440px);
+    max-height: 86vh;
+    border-radius: 20px;
+    padding: 16px 14px;
+    box-shadow: 0 16px 48px rgba(0, 0, 0, 0.95), 0 0 0 1px rgba(255, 255, 255, 0.16);
+  }
+
+  .stage-tab-toggle {
+    left: -38px;
+    width: 38px;
+    min-height: 80px;
+    padding: 8px 4px;
+    border-radius: 16px 0 0 16px;
+  }
+
+  .stage-tab-toggle .toggle-text {
+    font-size: 9px;
   }
 
   .track-row {

@@ -233,6 +233,20 @@
 
       <!-- State B: Loaded State Music Tab (Tracklist on the Right Hand Side) -->
       <aside class="stage-music-tab" id="stageMusicTab" aria-label="Music Tab">
+        <!-- Floating Drawer Pull Handle (Arrow Key toggle to slide tab in / out) -->
+        <button class="stage-tab-toggle" id="stageTabToggle" type="button" aria-label="Toggle tracks panel" title="Hide tracks panel">
+          <span class="toggle-icon-wrap">
+            <svg class="toggle-icon toggle-icon-collapse" viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+              <polyline points="9 18 15 12 9 6"></polyline>
+            </svg>
+            <svg class="toggle-icon toggle-icon-expand" viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+              <polyline points="15 18 9 12 15 6"></polyline>
+            </svg>
+          </span>
+          <span class="toggle-pulse-dot"></span>
+          <span class="toggle-text">Tracks</span>
+        </button>
+
         <div class="music-playing-state" id="musicPlayingState">
           <div class="music-tab-header">
             <div class="header-top-row">
@@ -250,6 +264,12 @@
                     <rect x="14" y="4" width="4" height="16"></rect>
                   </svg>
                   <span id="audioPlayBtnText">Play</span>
+                </button>
+                <button class="action-btn collapse-tab-btn" id="collapseTabBtn" type="button" title="Hide tracks panel (centers spinning vinyl)">
+                  <svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+                    <polyline points="9 18 15 12 9 6"></polyline>
+                  </svg>
+                  <span>Hide</span>
                 </button>
                 <button class="action-btn save-btn" id="saveAlbumBtn" type="button" title="Save song to shelf (stays after refreshing)">
                   <svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">

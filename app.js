@@ -26,6 +26,8 @@
   const stageJacketSurface = document.getElementById('stageJacketSurface');
   const stageDiscLabel = document.getElementById('stageDiscLabel');
   const stageMusicTab = document.getElementById('stageMusicTab');
+  const stageTabToggle = document.getElementById('stageTabToggle');
+  const collapseTabBtn = document.getElementById('collapseTabBtn');
   const musicAlbumTitle = document.getElementById('musicAlbumTitle');
   const musicPlayerFrame = document.getElementById('musicPlayerFrame');
   const stageCloseBtn = document.getElementById('stageCloseBtn');
@@ -501,6 +503,40 @@
     }
   }
 
+  // --- Collapse / Expand Music Tab Drawer & Center / Split Vinyl Album ---
+  function setMusicTabCollapsed(collapsed, animate = true) {
+    if (!activeAlbum || !stageContentWrap || !stageContentWrap.classList.contains('mode-loaded')) return;
+
+    stageContentWrap.classList.toggle('is-tab-collapsed', collapsed);
+
+    if (stageTabToggle) {
+      stageTabToggle.title = collapsed ? 'Show tracks panel (expand)' : 'Hide tracks panel (center vinyl)';
+      stageTabToggle.setAttribute('aria-expanded', String(!collapsed));
+      stageTabToggle.classList.toggle('is-collapsed', collapsed);
+    }
+
+    // Force layout reflow so stageVinylAnchor updates to new width / position
+    void stageVinylAnchor.offsetWidth;
+    const anchorRect = stageVinylAnchor.getBoundingClientRect();
+
+    if (animate) {
+      stageAlbum.style.transition = `
+        left 0.75s cubic-bezier(0.16, 1, 0.3, 1),
+        top 0.75s cubic-bezier(0.16, 1, 0.3, 1),
+        width 0.75s cubic-bezier(0.16, 1, 0.3, 1),
+        height 0.75s cubic-bezier(0.16, 1, 0.3, 1),
+        transform 0.75s cubic-bezier(0.16, 1, 0.3, 1)
+      `;
+    } else {
+      stageAlbum.style.transition = 'none';
+    }
+
+    stageAlbum.style.left = `${anchorRect.left}px`;
+    stageAlbum.style.top = `${anchorRect.top}px`;
+    stageAlbum.style.width = `${anchorRect.height}px`;
+    stageAlbum.style.height = `${anchorRect.height}px`;
+  }
+
   // --- Swiping & Dragging Event Handlers (Real Velocity-Based Physics) ---
   function onPointerDown(e) {
     if (activeAlbum || isTransitioning) return;
@@ -684,6 +720,11 @@
     stageAlbum.className = 'stage-album';
     stageAlbum.dataset.tone = item.tone;
     stageAlbum.classList.remove('is-expanded', 'is-open');
+    stageContentWrap.classList.remove('is-tab-collapsed');
+    if (stageTabToggle) {
+      stageTabToggle.classList.remove('is-collapsed', 'is-playing');
+      stageTabToggle.setAttribute('aria-expanded', 'true');
+    }
 
     // Place stage album over clicked spine
     stageAlbum.style.display = 'block';
@@ -750,6 +791,10 @@
     stageAlbum.classList.remove('is-open');
     setVinylSpinning(false);
     inlineEditBar.classList.remove('is-open');
+    stageContentWrap.classList.remove('is-tab-collapsed');
+    if (stageTabToggle) {
+      stageTabToggle.classList.remove('is-collapsed', 'is-playing');
+    }
 
     resetNativePlayer();
     resetSceneBackgroundColor();
@@ -945,6 +990,7 @@
     const clickedAlbum = e.target.closest('#stageAlbum');
     const clickedSearch = e.target.closest('#stageEmptySearch');
     const clickedMusicTab = e.target.closest('#stageMusicTab');
+    const clickedTabToggle = e.target.closest('#stageTabToggle');
     const clickedCloseBtn = e.target.closest('#stageCloseBtn');
 
     if (clickedCloseBtn) return;
@@ -956,7 +1002,7 @@
       return;
     }
 
-    if (clickedSearch || clickedMusicTab) {
+    if (clickedSearch || clickedMusicTab || clickedTabToggle) {
       return;
     }
 
@@ -970,12 +1016,16 @@
     updateRadius();
     updateLightingAndVisibility();
     if (activeAlbum && !isTransitioning) {
-      const anchorRect = stageVinylAnchor.getBoundingClientRect();
-      stageAlbum.style.transition = 'none';
-      stageAlbum.style.left = `${anchorRect.left}px`;
-      stageAlbum.style.top = `${anchorRect.top}px`;
-      stageAlbum.style.width = `${anchorRect.height}px`;
-      stageAlbum.style.height = `${anchorRect.height}px`;
+      if (stageContentWrap && stageContentWrap.classList.contains('mode-loaded')) {
+        setMusicTabCollapsed(stageContentWrap.classList.contains('is-tab-collapsed'), false);
+      } else {
+        const anchorRect = stageVinylAnchor.getBoundingClientRect();
+        stageAlbum.style.transition = 'none';
+        stageAlbum.style.left = `${anchorRect.left}px`;
+        stageAlbum.style.top = `${anchorRect.top}px`;
+        stageAlbum.style.width = `${anchorRect.height}px`;
+        stageAlbum.style.height = `${anchorRect.height}px`;
+      }
     }
   });
 
@@ -1410,6 +1460,9 @@
     if (stageAlbum) {
       stageAlbum.classList.toggle('is-spinning', spinning);
     }
+    if (stageTabToggle) {
+      stageTabToggle.classList.toggle('is-playing', spinning);
+    }
   }
 
   // Format milliseconds into MM:SS string
@@ -1699,6 +1752,13 @@
 
     // 5. Spin vinyl on album whenever playing, stop immediately when paused
     setVinylSpinning(isPlaying);
+
+    // 6. Automatically collapse music tab into sidebar drawer when playing to center the vinyl record
+    if (isPlaying && stageContentWrap && stageContentWrap.classList.contains('mode-loaded')) {
+      if (!stageContentWrap.classList.contains('is-tab-collapsed')) {
+        setMusicTabCollapsed(true, true);
+      }
+    }
   }
 
   function resetNativePlayer() {
@@ -1791,6 +1851,23 @@
     audioPlayToggleBtn.addEventListener('click', (e) => {
       e.stopPropagation();
       togglePlayPause();
+    });
+  }
+
+  // Floating Sidebar Drawer Pull Handle (Arrow Key toggle to slide tab in / out)
+  if (stageTabToggle) {
+    stageTabToggle.addEventListener('click', (e) => {
+      e.stopPropagation();
+      const isCollapsed = stageContentWrap.classList.contains('is-tab-collapsed');
+      setMusicTabCollapsed(!isCollapsed, true);
+    });
+  }
+
+  // Header "Hide" button to manually collapse tab
+  if (collapseTabBtn) {
+    collapseTabBtn.addEventListener('click', (e) => {
+      e.stopPropagation();
+      setMusicTabCollapsed(true, true);
     });
   }
 
