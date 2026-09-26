@@ -33,13 +33,25 @@ module.exports = async (req, res) => {
     }
 
     const html = await response.text();
-    const matches = html.matchAll(/"videoId":"([a-zA-Z0-9_-]{11})"/g);
     let videoId = null;
 
-    for (const match of matches) {
+    // 1. Look for videoRenderer first (accurate search result)
+    const vrMatches = html.matchAll(/"videoRenderer":\s*\{\s*"videoId":\s*"([a-zA-Z0-9_-]{11})"/g);
+    for (const match of vrMatches) {
       if (match[1] && match[1].length === 11) {
         videoId = match[1];
         break;
+      }
+    }
+
+    // 2. Fallback to general videoId
+    if (!videoId) {
+      const matches = html.matchAll(/"videoId":"([a-zA-Z0-9_-]{11})"/g);
+      for (const match of matches) {
+        if (match[1] && match[1].length === 11) {
+          videoId = match[1];
+          break;
+        }
       }
     }
 

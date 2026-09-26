@@ -1277,13 +1277,36 @@
           'onStateChange': onYtPlayerStateChange,
           'onError': (e) => {
             console.warn('YouTube Audio Player error:', e);
-            if (activeAlbumTracks[currentTrackIdx]) {
-              playSynthFallbackTrack();
-              isFullSongPlaying = true;
-              updateAudioPlaybackUI(true);
-              setVinylSpinning(true);
-              if (tracklistBadgeText) {
-                tracklistBadgeText.textContent = `Playing: ${activeAlbumTracks[currentTrackIdx].title} (Lo-Fi)`;
+            const curTrack = activeAlbumTracks[currentTrackIdx];
+            if (curTrack && curTrack.previewUrl && nativeAudioPlayer) {
+              try {
+                nativeAudioPlayer.src = curTrack.previewUrl;
+                nativeAudioPlayer.play().then(() => {
+                  isFullSongPlaying = true;
+                  updateAudioPlaybackUI(true);
+                  setVinylSpinning(true);
+                  if (tracklistBadgeText) {
+                    tracklistBadgeText.textContent = `Playing: ${curTrack.title}`;
+                  }
+                }).catch(() => {
+                  isFullSongPlaying = false;
+                  updateAudioPlaybackUI(false);
+                  setVinylSpinning(false);
+                  if (tracklistBadgeText) {
+                    tracklistBadgeText.textContent = `Unavailable: ${curTrack.title}`;
+                  }
+                });
+              } catch (_) {
+                isFullSongPlaying = false;
+                updateAudioPlaybackUI(false);
+                setVinylSpinning(false);
+              }
+            } else {
+              isFullSongPlaying = false;
+              updateAudioPlaybackUI(false);
+              setVinylSpinning(false);
+              if (tracklistBadgeText && curTrack) {
+                tracklistBadgeText.textContent = `Unavailable: ${curTrack.title}`;
               }
             }
           }
@@ -1453,54 +1476,71 @@
     } catch (_) {}
   }
 
-  // Lo-Fi Vinyl Chord Synthesizer Fallback (Plays if a preview stream is missing)
-  function playSynthFallbackTrack() {
-    initWebAudio();
-    stopSynthFallback();
-    if (!audioCtx) return;
+  // Helper to resolve full album tracklist from Deezer / iTunes API when needed
+  async function fetchFullAlbumTracklist(albumTitle, artistName) {
+    const q = `${albumTitle} ${artistName}`.trim();
+    if (!q) return null;
 
-    synthGainNode = audioCtx.createGain();
-    synthGainNode.gain.setValueAtTime((currentVolume / 100) * 0.14, audioCtx.currentTime);
-    synthGainNode.connect(audioCtx.destination);
+    // 1. Try Deezer API
+    try {
+      const res = await fetch(`https://api.deezer.com/search/album?q=${encodeURIComponent(q)}`);
+      if (res.ok) {
+        const data = await res.json();
+        if (Array.isArray(data.data) && data.data.length > 0) {
+          const alb = data.data[0];
+          const albRes = await fetch(`https://api.deezer.com/album/${alb.id}`);
+          if (albRes.ok) {
+            const albData = await albRes.json();
+            if (albData.tracks && Array.isArray(albData.tracks.data) && albData.tracks.data.length > 0) {
+              return {
+                coverUrl: albData.cover_xl || alb.cover_xl || '',
+                tracks: albData.tracks.data.map((t, idx) => ({
+                  number: t.track_position || (idx + 1),
+                  title: t.title,
+                  artist: t.artist?.name || alb.artist?.name || artistName,
+                  durationMs: Number(t.duration || 0) * 1000,
+                  durationStr: formatDuration(Number(t.duration || 0) * 1000),
+                  previewUrl: t.preview || '',
+                  isPlayable: true
+                }))
+              };
+            }
+          }
+        }
+      }
+    } catch (_) {}
 
-    const chords = [
-      [174.61, 220.00, 261.63, 329.63], // Fmaj7
-      [164.81, 196.00, 246.94, 293.66], // Em7
-      [146.83, 174.61, 220.00, 261.63], // Dm7
-      [130.81, 164.81, 196.00, 246.94]  // Cmaj7
-    ];
-    let chordIdx = 0;
+    // 2. Fallback: iTunes API
+    try {
+      const itRes = await fetch(`https://itunes.apple.com/search?term=${encodeURIComponent(q)}&entity=album&limit=1`);
+      if (itRes.ok) {
+        const itData = await itRes.json();
+        if (Array.isArray(itData.results) && itData.results.length > 0) {
+          const col = itData.results[0];
+          const lkRes = await fetch(`https://itunes.apple.com/lookup?id=${col.collectionId}&entity=song`);
+          if (lkRes.ok) {
+            const lkData = await lkRes.json();
+            const songs = (lkData.results || []).filter(r => r.wrapperType === 'track');
+            if (songs.length > 0) {
+              return {
+                coverUrl: (col.artworkUrl100 || '').replace('100x100bb.jpg', '1400x1400bb.jpg'),
+                tracks: songs.map((s, idx) => ({
+                  number: s.trackNumber || (idx + 1),
+                  title: s.trackName,
+                  artist: s.artistName || artistName,
+                  durationMs: Number(s.trackTimeMillis || 0),
+                  durationStr: formatDuration(Number(s.trackTimeMillis || 0)),
+                  previewUrl: s.previewUrl || '',
+                  isPlayable: true
+                }))
+              };
+            }
+          }
+        }
+      }
+    } catch (_) {}
 
-    function playChord() {
-      if (!synthGainNode || audioCtx.state === 'suspended') return;
-      const freqs = chords[chordIdx % chords.length];
-      chordIdx++;
-      freqs.forEach(freq => {
-        try {
-          const osc = audioCtx.createOscillator();
-          const voiceGain = audioCtx.createGain();
-          osc.type = 'sine';
-          osc.frequency.setValueAtTime(freq, audioCtx.currentTime);
-          voiceGain.gain.setValueAtTime(0.001, audioCtx.currentTime);
-          voiceGain.gain.exponentialRampToValueAtTime(0.038, audioCtx.currentTime + 0.12);
-          voiceGain.gain.exponentialRampToValueAtTime(0.0001, audioCtx.currentTime + 1.85);
-          osc.connect(voiceGain);
-          voiceGain.connect(synthGainNode);
-          osc.start();
-          osc.stop(audioCtx.currentTime + 1.9);
-        } catch (_) {}
-      });
-    }
-
-    playChord();
-    synthInterval = setInterval(playChord, 2000);
-  }
-
-  function stopSynthFallback() {
-    if (synthInterval) {
-      clearInterval(synthInterval);
-      synthInterval = null;
-    }
+    return null;
   }
 
   // Vinyl Rotation Control: spins when audio is playing, stops when paused
@@ -1544,11 +1584,11 @@
       playerCoverThumb.style.backgroundImage = `url('${albumData.coverUrl}')`;
     }
 
-    // 3. Fetch tracks strictly from Spotify
+    // 3. Fetch tracks strictly from Spotify / Deezer / iTunes
     let tracks = [];
 
     // If tracks are already attached on albumData (e.g. from immediate paste), use them directly!
-    if (albumData.tracks && Array.isArray(albumData.tracks) && albumData.tracks.length > 0) {
+    if (albumData.tracks && Array.isArray(albumData.tracks) && albumData.tracks.length > 1) {
       tracks = albumData.tracks.map((t, idx) => ({
         id:          t.spotifyUri || t.id || idx,
         number:      t.number || (idx + 1),
@@ -1556,10 +1596,12 @@
         artist:      t.artist || albumData.artist || '',
         album:       albumData.title,
         durationMs:  t.durationMs || 0,
-        durationStr: t.durationStr || formatDuration(t.durationMs || 0)
+        durationStr: t.durationStr || formatDuration(t.durationMs || 0),
+        previewUrl:  t.previewUrl || '',
+        videoId:     t.videoId || null
       }));
     } else {
-      let spotifyType = albumData.type || 'playlist';
+      let spotifyType = albumData.type || 'album';
       let spotifyId   = albumData.id;
 
       if (albumData.spotifyUrl) {
@@ -1571,7 +1613,7 @@
       }
 
       if (tracklistScrollArea) {
-        tracklistScrollArea.innerHTML = '<div style="padding:32px 16px; text-align:center; color:rgba(255,255,255,0.6); font-size:14px; letter-spacing:0.5px;">Loading playlist tracks...</div>';
+        tracklistScrollArea.innerHTML = '<div style="padding:32px 16px; text-align:center; color:rgba(255,255,255,0.6); font-size:14px; letter-spacing:0.5px;">Loading album tracklist...</div>';
       }
 
       if (spotifyId) {
@@ -1594,46 +1636,77 @@
               }
               tracks = spotifyData.tracks.map((t, idx) => ({
                 id:          t.spotifyUri || idx,
-                number:      idx + 1,
+                number:      t.number || (idx + 1),
                 title:       t.title,
                 artist:      t.artist || albumData.artist || '',
                 album:       albumData.title,
                 durationMs:  t.durationMs || 0,
-                durationStr: formatDuration(t.durationMs || 0)
+                durationStr: t.durationStr || formatDuration(t.durationMs || 0),
+                previewUrl:  t.previewUrl || '',
+                videoId:     t.videoId || null
               }));
             }
           }
         } catch (err) {
           console.warn('[Disc] Spotify track fetch error:', err);
         }
+      }
 
-        // Direct oEmbed fallback if tracks array is still empty
-        if (tracks.length === 0 && albumData.spotifyUrl) {
-          try {
-            const oembedRes = await fetch(`https://open.spotify.com/oembed?url=${encodeURIComponent(albumData.spotifyUrl)}`);
-            if (oembedRes.ok) {
-              const odata = await oembedRes.json();
-              if (odata.thumbnail_url && !albumData.coverUrl) {
-                albumData.coverUrl = odata.thumbnail_url;
-                if (playerCoverThumb) {
-                  playerCoverThumb.style.backgroundImage = `url('${odata.thumbnail_url}')`;
-                }
-                extractDominantColor(odata.thumbnail_url).then(([r, g, b]) => {
-                  setSceneBackgroundColor(r, g, b, 0.58);
-                });
-              }
-              tracks = [{
-                id: albumData.spotifyUrl,
-                number: 1,
-                title: odata.title || albumData.title || 'Track 1',
-                artist: odata.author_name || albumData.artist || '',
-                album: albumData.title,
-                durationMs: 210000,
-                durationStr: '3:30'
-              }];
+      // If still empty or only 1 generic track for an album, query Deezer/iTunes
+      if (tracks.length <= 1 && albumData.title) {
+        try {
+          const resolved = await fetchFullAlbumTracklist(albumData.title, albumData.artist || '');
+          if (resolved && resolved.tracks && resolved.tracks.length > 0) {
+            tracks = resolved.tracks.map((t, idx) => ({
+              id:          idx,
+              number:      t.number || (idx + 1),
+              title:       t.title,
+              artist:      t.artist || albumData.artist || '',
+              album:       albumData.title,
+              durationMs:  t.durationMs || 0,
+              durationStr: t.durationStr || formatDuration(t.durationMs || 0),
+              previewUrl:  t.previewUrl || '',
+              videoId:     null
+            }));
+            if (resolved.coverUrl && !albumData.coverUrl) {
+              albumData.coverUrl = resolved.coverUrl;
+              if (playerCoverThumb) playerCoverThumb.style.backgroundImage = `url('${resolved.coverUrl}')`;
+              extractDominantColor(resolved.coverUrl).then(([r, g, b]) => {
+                setSceneBackgroundColor(r, g, b, 0.58);
+              });
             }
-          } catch (_) {}
-        }
+          }
+        } catch (_) {}
+      }
+
+      // Direct oEmbed fallback if tracks array is still empty
+      if (tracks.length === 0 && albumData.spotifyUrl) {
+        try {
+          const oembedRes = await fetch(`https://open.spotify.com/oembed?url=${encodeURIComponent(albumData.spotifyUrl)}`);
+          if (oembedRes.ok) {
+            const odata = await oembedRes.json();
+            if (odata.thumbnail_url && !albumData.coverUrl) {
+              albumData.coverUrl = odata.thumbnail_url;
+              if (playerCoverThumb) {
+                playerCoverThumb.style.backgroundImage = `url('${odata.thumbnail_url}')`;
+              }
+              extractDominantColor(odata.thumbnail_url).then(([r, g, b]) => {
+                setSceneBackgroundColor(r, g, b, 0.58);
+              });
+            }
+            tracks = [{
+              id: albumData.spotifyUrl,
+              number: 1,
+              title: odata.title || albumData.title || 'Track 1',
+              artist: odata.author_name || albumData.artist || '',
+              album: albumData.title,
+              durationMs: 210000,
+              durationStr: '3:30',
+              previewUrl: '',
+              videoId: null
+            }];
+          }
+        } catch (_) {}
       }
     }
 
@@ -1730,7 +1803,6 @@
       }
     });
 
-    stopSynthFallback();
     stopProgressTracking();
     if (nativeAudioPlayer) {
       nativeAudioPlayer.pause();
@@ -1741,7 +1813,37 @@
       tracklistBadgeText.textContent = `Loading: ${track.title}...`;
     }
 
-    // 1. Check if videoId is already known or fetch it
+    // Helper to play the authentic audio stream preview directly
+    const playViaPreview = () => {
+      if (track.previewUrl && nativeAudioPlayer) {
+        try {
+          nativeAudioPlayer.src = track.previewUrl;
+          if (autoPlay) {
+            nativeAudioPlayer.play().then(() => {
+              isFullSongPlaying = true;
+              updateAudioPlaybackUI(true);
+              setVinylSpinning(true);
+              if (tracklistBadgeText) {
+                tracklistBadgeText.textContent = `Playing: ${track.title}`;
+              }
+            }).catch(() => {
+              isFullSongPlaying = false;
+              updateAudioPlaybackUI(false);
+              setVinylSpinning(false);
+              if (tracklistBadgeText) {
+                tracklistBadgeText.textContent = `Unavailable: ${track.title}`;
+              }
+            });
+          } else {
+            updateAudioPlaybackUI(false);
+          }
+          return true;
+        } catch (_) {}
+      }
+      return false;
+    };
+
+    // 1. Check if videoId is already known or fetch it for exact match
     let videoId = track.videoId || null;
     if (!videoId) {
       videoId = await fetchFullTrackVideoId(track);
@@ -1780,19 +1882,12 @@
           if (ytPlayer && ytPlayerReady) {
             clearInterval(readyChecker);
             loadAndPlayYt(videoId);
-          } else if (waited >= 2400) {
+          } else if (waited >= 2200) {
             clearInterval(readyChecker);
-            if (autoPlay) {
-              playSynthFallbackTrack();
-              isFullSongPlaying = true;
-              updateAudioPlaybackUI(true);
-              setVinylSpinning(true);
-              if (tracklistBadgeText) {
-                tracklistBadgeText.textContent = `Playing: ${track.title} (Lo-Fi)`;
-              }
-            } else {
+            if (!playViaPreview()) {
+              isFullSongPlaying = false;
               updateAudioPlaybackUI(false);
-              if (tracklistBadgeText) tracklistBadgeText.textContent = 'Tracklist';
+              if (tracklistBadgeText) tracklistBadgeText.textContent = `Unavailable: ${track.title}`;
             }
           }
         }, 80);
@@ -1800,20 +1895,17 @@
       }
     }
 
-    // Graceful fallback if video ID cannot be resolved
-    if (autoPlay) {
-      playSynthFallbackTrack();
-      isFullSongPlaying = true;
-      updateAudioPlaybackUI(true);
-      setVinylSpinning(true);
-      if (tracklistBadgeText) {
-        tracklistBadgeText.textContent = `Playing: ${track.title} (Lo-Fi)`;
-      }
-    } else {
-      updateAudioPlaybackUI(false);
-      if (tracklistBadgeText) {
-        tracklistBadgeText.textContent = 'Tracklist';
-      }
+    // 2. Play authentic audio stream if YouTube video is not available
+    if (playViaPreview()) {
+      return;
+    }
+
+    // 3. Audio unavailable for this specific track
+    isFullSongPlaying = false;
+    updateAudioPlaybackUI(false);
+    setVinylSpinning(false);
+    if (tracklistBadgeText) {
+      tracklistBadgeText.textContent = `Unavailable: ${track.title}`;
     }
   }
 
@@ -1884,7 +1976,6 @@
       nativeAudioPlayer.pause();
       nativeAudioPlayer.src = '';
     }
-    stopSynthFallback();
     setVinylSpinning(false);
     if (playerCoverThumb) playerCoverThumb.style.backgroundImage = 'none';
     if (playerTrackTitle) playerTrackTitle.textContent = 'Select a track';
@@ -1914,7 +2005,6 @@
       if (nativeAudioPlayer && !nativeAudioPlayer.paused) {
         try { nativeAudioPlayer.pause(); } catch (_) {}
       }
-      stopSynthFallback();
       stopProgressTracking();
       setVinylSpinning(false);
       updateAudioPlaybackUI(false);
@@ -1931,7 +2021,7 @@
         startProgressTracking();
         return;
       } catch (err) {
-        console.warn('Error resuming YT player, falling back to selectTrack:', err);
+        console.warn('Error resuming YT player, falling back to preview:', err);
       }
     }
 
