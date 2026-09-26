@@ -501,23 +501,8 @@ html, body {
   transition: flex 0.75s cubic-bezier(0.16, 1, 0.3, 1), width 0.75s cubic-bezier(0.16, 1, 0.3, 1), padding 0.75s cubic-bezier(0.16, 1, 0.3, 1);
 }
 
-/* Collapsed Tab Mode: Left column expands to 100vw, horizontally centering the vinyl disc */
-.stage-content-wrap.mode-loaded.is-tab-collapsed .stage-col-left {
-  flex: 0 0 100vw;
-  width: 100vw;
-}
-
-.stage-content-wrap.mode-loaded.is-tab-collapsed .stage-col-right {
-  flex: 0 0 0px;
-  width: 0px;
-  padding: 0;
-  margin: 0;
-  overflow: visible;
-}
-
-.stage-content-wrap.mode-loaded .stage-music-tab {
+.stage-content-wrap.mode-loaded .stage-music-drawer {
   display: flex;
-  pointer-events: auto;
 }
 
 /* Anchor Target for stageAlbum (determines resting position on screen) */
@@ -916,59 +901,74 @@ html, body {
    State B: Loaded State Music Tab (Vinyl on Left, Song List on Right)
    ========================================================================== */
 
-.stage-music-tab {
-  width: clamp(540px, 38vw, 680px);
-  height: clamp(560px, min(42vw, 84vh), 800px);
-  max-height: 88vh;
-  box-sizing: border-box;
-  overflow: hidden;
-  background: rgba(14, 16, 24, 0.9);
-  backdrop-filter: blur(28px);
-  -webkit-backdrop-filter: blur(28px);
-  border: 1px solid rgba(255, 255, 255, 0.14);
-  border-radius: 28px;
-  padding: 24px 26px;
-  box-shadow: 
-    0 35px 85px rgba(0, 0, 0, 0.85),
-    inset 0 0 0 1px rgba(255, 255, 255, 0.08);
+/* Music Drawer Container in Right Column */
+.stage-music-drawer {
+  position: relative;
   display: flex;
-  flex-direction: column;
-  justify-content: flex-start;
-  gap: 12px;
+  align-items: center;
+  justify-content: center;
   pointer-events: auto;
   transition: transform 0.65s cubic-bezier(0.16, 1, 0.3, 1), opacity 0.4s ease;
   z-index: 120;
 }
 
-/* Tab Drawer Collapsed to Sidebar State */
-.stage-content-wrap.mode-loaded.is-tab-collapsed .stage-music-tab {
-  transform: translateX(calc(100% + 80px));
-  opacity: 0;
-  pointer-events: none;
+.stage-content-wrap.mode-empty .stage-music-drawer {
+  display: none !important;
 }
 
-/* Floating Sidebar Drawer Pull Handle (Arrow Key toggle on right sidebar edge) */
+.stage-content-wrap.mode-loaded .stage-music-drawer {
+  display: flex;
+}
+
+/* Collapsed Tab State: Slides entire drawer with handle off-screen, docking handle on right screen edge */
+.stage-content-wrap.mode-loaded.is-tab-collapsed .stage-music-drawer {
+  transform: translateX(calc(25vw + 50%));
+}
+
+.stage-music-tab {
+  width: clamp(400px, 29vw, 490px);
+  height: clamp(460px, min(36vw, 75vh), 620px);
+  max-height: 80vh;
+  box-sizing: border-box;
+  overflow: hidden;
+  background: rgba(14, 16, 24, 0.92);
+  backdrop-filter: blur(28px);
+  -webkit-backdrop-filter: blur(28px);
+  border: 1px solid rgba(255, 255, 255, 0.14);
+  border-radius: 20px;
+  padding: 16px 18px;
+  box-shadow: 
+    0 30px 75px rgba(0, 0, 0, 0.85),
+    inset 0 0 0 1px rgba(255, 255, 255, 0.08);
+  display: flex;
+  flex-direction: column;
+  justify-content: flex-start;
+  gap: 8px;
+  pointer-events: auto;
+  z-index: 120;
+}
+
+/* Floating Sidebar Drawer Pull Handle (Directly connected to left edge of music tab) */
 .stage-tab-toggle {
-  position: fixed;
-  right: clamp(540px, 38vw, 680px);
+  position: absolute;
+  right: 100%;
   top: 50%;
   transform: translateY(-50%);
-  z-index: 150;
-  display: none;
-  border-radius: 20px 0 0 20px;
+  z-index: 130;
+  display: flex;
+  border-radius: 14px 0 0 14px;
   background: rgba(14, 16, 24, 0.94);
   backdrop-filter: blur(28px);
   -webkit-backdrop-filter: blur(28px);
   border: 1px solid rgba(255, 255, 255, 0.18);
   border-right: none;
   color: #ffffff;
-  padding: 14px 10px;
+  padding: 12px 8px;
   cursor: pointer;
   box-shadow: 
     -10px 0 32px rgba(0, 0, 0, 0.8),
     inset 0 0 0 1px rgba(255, 255, 255, 0.08);
   transition: 
-    right 0.65s cubic-bezier(0.16, 1, 0.3, 1),
     transform 0.25s cubic-bezier(0.16, 1, 0.3, 1),
     background 0.25s ease,
     border-color 0.25s ease,
@@ -978,17 +978,12 @@ html, body {
   pointer-events: auto;
 }
 
-/* Only display drawer handle when stage is loaded with music */
-.inspection-stage.is-active .stage-content-wrap.mode-loaded ~ .stage-tab-toggle {
-  display: flex;
-}
-
 .stage-tab-toggle .toggle-pill-inner {
   display: flex;
   flex-direction: column;
   align-items: center;
   justify-content: center;
-  gap: 7px;
+  gap: 6px;
 }
 
 .stage-tab-toggle:hover {
@@ -998,17 +993,11 @@ html, body {
   box-shadow: 
     -14px 0 40px rgba(29, 185, 84, 0.35),
     -6px 0 24px rgba(0, 0, 0, 0.85);
-  transform: translateY(-50%) translateX(-4px);
+  transform: translateY(-50%) translateX(-3px);
 }
 
 .stage-tab-toggle:active {
   transform: translateY(-50%) scale(0.95);
-}
-
-/* Position when tab is collapsed to sidebar */
-.stage-content-wrap.mode-loaded.is-tab-collapsed ~ .stage-tab-toggle,
-.stage-tab-toggle.is-collapsed {
-  right: 0px !important;
 }
 
 .toggle-icon-collapse {
@@ -1019,19 +1008,19 @@ html, body {
   display: none;
 }
 
-.stage-content-wrap.mode-loaded.is-tab-collapsed ~ .stage-tab-toggle .toggle-icon-collapse,
+.stage-content-wrap.mode-loaded.is-tab-collapsed .toggle-icon-collapse,
 .stage-tab-toggle.is-collapsed .toggle-icon-collapse {
-  display: none;
+  display: none !important;
 }
 
-.stage-content-wrap.mode-loaded.is-tab-collapsed ~ .stage-tab-toggle .toggle-icon-expand,
+.stage-content-wrap.mode-loaded.is-tab-collapsed .toggle-icon-expand,
 .stage-tab-toggle.is-collapsed .toggle-icon-expand {
-  display: block;
+  display: block !important;
 }
 
 .stage-tab-toggle .toggle-pulse-dot {
-  width: 7px;
-  height: 7px;
+  width: 6px;
+  height: 6px;
   border-radius: 50%;
   background: var(--spotify-green);
   box-shadow: 0 0 10px var(--spotify-green);
@@ -1046,9 +1035,9 @@ html, body {
 .stage-tab-toggle .toggle-text {
   writing-mode: vertical-rl;
   text-orientation: mixed;
-  font-size: 10.5px;
+  font-size: 10px;
   font-weight: 700;
-  letter-spacing: 0.16em;
+  letter-spacing: 0.14em;
   text-transform: uppercase;
   color: rgba(255, 255, 255, 0.75);
   transition: color 0.2s ease;
@@ -1411,8 +1400,8 @@ html, body {
 .native-player-card {
   display: flex;
   flex-direction: column;
-  padding: 16px 20px;
-  gap: 11px;
+  padding: 12px 14px;
+  gap: 8px;
   width: 100%;
   height: 100%;
   min-height: 0;
@@ -1423,19 +1412,19 @@ html, body {
 .player-hero-row {
   display: flex;
   align-items: center;
-  gap: 16px;
+  gap: 12px;
   width: 100%;
 }
 
 .player-cover-thumb {
-  width: 66px;
-  height: 66px;
-  border-radius: 12px;
+  width: 48px;
+  height: 48px;
+  border-radius: 10px;
   background-size: cover;
   background-position: center;
   background-repeat: no-repeat;
   background-color: #1a1c24;
-  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.65);
+  box-shadow: 0 6px 18px rgba(0, 0, 0, 0.6);
   flex-shrink: 0;
   border: 1px solid rgba(255, 255, 255, 0.14);
 }
@@ -1445,11 +1434,11 @@ html, body {
   min-width: 0;
   display: flex;
   flex-direction: column;
-  gap: 4px;
+  gap: 2px;
 }
 
 .player-track-title {
-  font-size: 16.5px;
+  font-size: 14.5px;
   font-weight: 600;
   color: #ffffff;
   white-space: nowrap;
@@ -1459,8 +1448,8 @@ html, body {
 }
 
 .player-track-artist {
-  font-size: 13.5px;
-  color: rgba(255, 255, 255, 0.65);
+  font-size: 12px;
+  color: rgba(255, 255, 255, 0.6);
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
@@ -1469,13 +1458,13 @@ html, body {
 .player-buttons-group {
   display: flex;
   align-items: center;
-  gap: 10px;
+  gap: 6px;
   flex-shrink: 0;
 }
 
 .player-nav-btn {
-  width: 36px;
-  height: 36px;
+  width: 30px;
+  height: 30px;
   border-radius: 50%;
   background: transparent;
   border: none;
@@ -1531,8 +1520,8 @@ html, body {
 }
 
 .player-main-play-btn {
-  width: 48px;
-  height: 48px;
+  width: 38px;
+  height: 38px;
   border-radius: 50%;
   background: var(--spotify-green);
   border: none;
@@ -1542,14 +1531,14 @@ html, body {
   align-items: center;
   justify-content: center;
   transition: transform 0.15s ease, filter 0.15s ease, box-shadow 0.2s ease;
-  box-shadow: 0 0 20px rgba(29, 185, 84, 0.45);
+  box-shadow: 0 0 16px rgba(29, 185, 84, 0.4);
   outline: none;
 }
 
 .player-main-play-btn:hover {
   filter: brightness(1.1);
   transform: scale(1.06);
-  box-shadow: 0 0 26px rgba(29, 185, 84, 0.65);
+  box-shadow: 0 0 22px rgba(29, 185, 84, 0.65);
 }
 
 .player-main-play-btn:active {
@@ -1560,33 +1549,33 @@ html, body {
 .playback-progress-section {
   display: flex;
   align-items: center;
-  gap: 12px;
+  gap: 8px;
   width: 100%;
   user-select: none;
   -webkit-user-select: none;
-  margin-top: 4px;
+  margin-top: 2px;
 }
 
 .progress-time {
-  font-size: 12px;
+  font-size: 11px;
   font-family: ui-monospace, SFMono-Regular, "SF Mono", monospace;
   color: rgba(255, 255, 255, 0.6);
-  min-width: 34px;
+  min-width: 30px;
   text-align: center;
 }
 
 .progress-bar-bg {
   position: relative;
   flex: 1;
-  height: 5px;
-  border-radius: 3px;
+  height: 4px;
+  border-radius: 2px;
   background: rgba(255, 255, 255, 0.18);
   cursor: pointer;
   transition: height 0.15s ease;
 }
 
 .playback-progress-section:hover .progress-bar-bg {
-  height: 6px;
+  height: 5px;
 }
 
 .progress-bar-fill {
@@ -1594,7 +1583,7 @@ html, body {
   left: 0;
   top: 0;
   bottom: 0;
-  border-radius: 3px;
+  border-radius: 2px;
   background: #ffffff;
   pointer-events: none;
   transition: background 0.15s ease;
@@ -1608,8 +1597,8 @@ html, body {
   position: absolute;
   top: 50%;
   transform: translate(-50%, -50%);
-  width: 13px;
-  height: 13px;
+  width: 11px;
+  height: 11px;
   border-radius: 50%;
   background: #ffffff;
   box-shadow: 0 1px 4px rgba(0, 0, 0, 0.85);
@@ -1629,15 +1618,15 @@ html, body {
 .volume-slider-bar {
   display: flex;
   align-items: center;
-  gap: 10px;
+  gap: 8px;
   width: 100%;
-  height: 24px;
+  height: 20px;
   cursor: pointer;
   user-select: none;
   -webkit-user-select: none;
   touch-action: none;
   position: relative;
-  margin-top: -1px;
+  margin-top: -2px;
 }
 
 .volume-speaker-btn {
@@ -1645,7 +1634,7 @@ html, body {
   border: none;
   color: rgba(255, 255, 255, 0.65);
   cursor: pointer;
-  padding: 3px;
+  padding: 2px;
   margin: 0;
   display: flex;
   align-items: center;
@@ -1657,7 +1646,7 @@ html, body {
 
 .volume-speaker-btn:hover {
   color: #1ed760;
-  transform: scale(1.18);
+  transform: scale(1.15);
 }
 
 .volume-speaker-btn:active {
@@ -1700,8 +1689,8 @@ html, body {
   position: absolute;
   top: 50%;
   left: 75%;
-  width: 9px;
-  height: 9px;
+  width: 8px;
+  height: 8px;
   border-radius: 50%;
   background: #ffffff;
   box-shadow: 0 1px 3px rgba(0, 0, 0, 0.85);
@@ -1712,20 +1701,20 @@ html, body {
 
 .volume-slider-bar:hover .volume-thumb,
 .volume-slider-bar.is-dragging .volume-thumb {
-  transform: translate(-50%, -50%) scale(1.35);
+  transform: translate(-50%, -50%) scale(1.3);
 }
 
 .volume-tooltip {
   position: absolute;
-  bottom: 22px;
+  bottom: 20px;
   left: 75%;
   transform: translateX(-50%);
-  padding: 3px 8px;
-  border-radius: 5px;
+  padding: 2px 7px;
+  border-radius: 4px;
   background: rgba(0, 0, 0, 0.9);
   border: 1px solid rgba(255, 255, 255, 0.18);
   color: #ffffff;
-  font-size: 11px;
+  font-size: 10.5px;
   font-family: ui-monospace, SFMono-Regular, "SF Mono", monospace;
   font-weight: 600;
   pointer-events: none;
@@ -1742,27 +1731,27 @@ html, body {
 
 
 /* ==========================================================================
-   Taller Tracklist
+   Tracklist
    ========================================================================== */
 
 .native-tracklist-wrap {
-  margin-top: 4px;
+  margin-top: 2px;
   border-top: 1px solid rgba(255, 255, 255, 0.09);
-  padding-top: 8px;
+  padding-top: 6px;
   display: flex;
   flex-direction: column;
-  gap: 6px;
+  gap: 4px;
   flex: 1;
   min-height: 0;
 }
 
 .tracklist-header-label {
-  font-size: 12px;
+  font-size: 11px;
   text-transform: uppercase;
   letter-spacing: 0.1em;
   color: rgba(255, 255, 255, 0.45);
   font-weight: 600;
-  padding-left: 12px;
+  padding-left: 10px;
   flex-shrink: 0;
 }
 
@@ -1774,8 +1763,8 @@ html, body {
   scrollbar-width: thin;
   display: flex;
   flex-direction: column;
-  gap: 3px;
-  padding-right: 6px;
+  gap: 2px;
+  padding-right: 4px;
 }
 
 .tracklist-scroll-area::-webkit-scrollbar {
@@ -1790,9 +1779,9 @@ html, body {
 .track-row {
   display: flex;
   align-items: center;
-  gap: 14px;
-  padding: 10px 14px;
-  border-radius: 10px;
+  gap: 10px;
+  padding: 6px 10px;
+  border-radius: 8px;
   cursor: pointer;
   transition: background 0.15s ease;
 }
@@ -1806,8 +1795,8 @@ html, body {
 }
 
 .track-num {
-  width: 26px;
-  font-size: 13px;
+  width: 22px;
+  font-size: 12px;
   color: rgba(255, 255, 255, 0.45);
   text-align: center;
   font-variant-numeric: tabular-nums;
@@ -1824,11 +1813,11 @@ html, body {
   min-width: 0;
   display: flex;
   flex-direction: column;
-  gap: 2px;
+  gap: 1px;
 }
 
 .track-row-title {
-  font-size: 14.5px;
+  font-size: 13.5px;
   font-weight: 500;
   color: #ffffff;
   white-space: nowrap;
@@ -1841,7 +1830,7 @@ html, body {
 }
 
 .track-row-artist {
-  font-size: 12px;
+  font-size: 11.5px;
   color: rgba(255, 255, 255, 0.52);
   white-space: nowrap;
   overflow: hidden;
@@ -1849,7 +1838,7 @@ html, body {
 }
 
 .track-row-duration {
-  font-size: 12.5px;
+  font-size: 11.5px;
   color: rgba(255, 255, 255, 0.52);
   font-family: ui-monospace, SFMono-Regular, "SF Mono", monospace;
   flex-shrink: 0;
@@ -1862,16 +1851,16 @@ html, body {
 .track-playing-equalizer {
   display: inline-flex;
   align-items: flex-end;
-  gap: 2.5px;
-  height: 14px;
-  width: 16px;
-  margin-right: 4px;
+  gap: 2px;
+  height: 12px;
+  width: 14px;
+  margin-right: 3px;
 }
 
 .track-playing-equalizer span {
-  width: 3px;
+  width: 2.5px;
   background: #1ed760;
-  border-radius: 1.5px;
+  border-radius: 1px;
   animation: eqBounce 0.8s ease-in-out infinite alternate;
 }
 
@@ -2966,28 +2955,27 @@ html, body {
   }
 
   .stage-music-tab {
-    width: min(92vw, 440px);
-    max-height: 86vh;
-    border-radius: 20px;
-    padding: 16px 14px;
+    width: min(88vw, 380px);
+    max-height: 84vh;
+    border-radius: 18px;
+    padding: 14px 12px;
     box-shadow: 0 16px 48px rgba(0, 0, 0, 0.95), 0 0 0 1px rgba(255, 255, 255, 0.16);
   }
 
   .stage-tab-toggle {
-    left: -38px;
-    width: 38px;
-    min-height: 80px;
-    padding: 8px 4px;
-    border-radius: 16px 0 0 16px;
+    right: 100%;
+    left: auto;
+    padding: 10px 6px;
+    border-radius: 12px 0 0 12px;
   }
 
   .stage-tab-toggle .toggle-text {
-    font-size: 9px;
+    font-size: 8.5px;
   }
 
   .track-row {
-    min-height: 48px;
-    padding: 10px 12px;
+    min-height: 38px;
+    padding: 6px 8px;
   }
 
   .stage-close-btn {

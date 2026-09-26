@@ -1015,7 +1015,7 @@
       return;
     }
 
-    if (clickedSearch || clickedMusicTab || clickedTabToggle) {
+    if (clickedSearch || clickedMusicTab || clickedTabToggle || e.target.closest('#stageMusicDrawer')) {
       return;
     }
 
