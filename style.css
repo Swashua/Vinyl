@@ -32,7 +32,9 @@
   --spine-width: clamp(20px, 2.4vw, 28px);
   --spine-height: clamp(480px, 60vh, 660px);
   --spine-depth: 10px;
-  --stage-size: clamp(680px, min(56vw, 84vh), 960px);
+  --stage-size-center: clamp(680px, min(56vw, 84vh), 960px);
+  --stage-size-split: clamp(420px, min(30vw, 58vh), 540px);
+  --stage-size: var(--stage-size-center);
   --ease-spring: cubic-bezier(0.16, 1, 0.3, 1);
   --ease-smooth: cubic-bezier(0.22, 1, 0.36, 1);
   --ease-out-back: cubic-bezier(0.18, 0.89, 0.32, 1.12);

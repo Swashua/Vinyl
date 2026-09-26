@@ -490,7 +490,11 @@
 
   // --- Calculate Screen Coordinates for Stage Album (Pixel-Perfect Center / Split) ---
   function getStageAlbumTargetRect(collapsed) {
-    const stageSize = parseFloat(getComputedStyle(document.documentElement).getPropertyValue('--stage-size')) || 680;
+    const isCentered = collapsed || (stageContentWrap && stageContentWrap.classList.contains('mode-empty'));
+    const cssVarName = isCentered ? '--stage-size-center' : '--stage-size-split';
+    const computedVal = parseFloat(getComputedStyle(document.documentElement).getPropertyValue(cssVarName));
+    const stageSize = computedVal || (isCentered ? 760 : 490);
+
     const w = window.innerWidth;
     const h = window.innerHeight;
     const isMobile = w <= 680;
@@ -501,15 +505,15 @@
       // Mobile: Centered horizontally near top/center
       targetLeft = Math.max(12, (w - stageSize) / 2);
       targetTop = Math.max(60, (h - stageSize) / 2 - (collapsed ? 0 : 60));
-    } else if (collapsed || (stageContentWrap && stageContentWrap.classList.contains('mode-empty'))) {
-      // Centered Mode: Vinyl disc is centered over the cover, so center jacket directly in viewport
+    } else if (isCentered) {
+      // Centered Mode: Large size, vinyl disc centered over the cover, center jacket directly in viewport
       targetLeft = (w - stageSize) / 2;
       targetTop = (h - stageSize) / 2;
     } else {
-      // Split 50/50 Loaded Mode: Entire visual span is centered in the LEFT 50% of viewport
+      // Split 50/50 Loaded Mode: Compact size, visual span (jacket + pulled disc) centered in the LEFT 50%
       const halfW = w / 2;
       const totalVisualSpan = stageSize * 1.48;
-      targetLeft = (halfW - totalVisualSpan) / 2;
+      targetLeft = Math.max(28, (halfW - totalVisualSpan) / 2);
       targetTop = (h - stageSize) / 2;
     }
 
