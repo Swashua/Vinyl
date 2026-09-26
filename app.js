@@ -530,30 +530,39 @@
   // --- Calculate Screen Coordinates for Stage Album (Pixel-Perfect Center / Split) ---
   function getStageAlbumTargetRect(collapsed) {
     const isCentered = collapsed || (stageContentWrap && stageContentWrap.classList.contains('mode-empty'));
-    const cssVarName = isCentered ? '--stage-size-center' : '--stage-size-split';
-    const computedVal = parseFloat(getComputedStyle(document.documentElement).getPropertyValue(cssVarName));
-    const stageSize = computedVal || (isCentered ? 760 : 490);
-
     const w = window.innerWidth;
     const h = window.innerHeight;
     const isMobile = w <= 680;
 
-    let targetLeft, targetTop;
+    let targetLeft, targetTop, stageSize;
 
     if (isMobile) {
-      // Mobile: Centered horizontally near top/center
-      targetLeft = Math.max(12, (w - stageSize) / 2);
-      targetTop = Math.max(60, (h - stageSize) / 2 - (collapsed ? 0 : 60));
-    } else if (isCentered) {
-      // Centered Mode: Large size, vinyl disc centered over the cover, center jacket directly in viewport
-      targetLeft = (w - stageSize) / 2;
-      targetTop = (h - stageSize) / 2;
+      // Mobile calculation: scale proportionally to phone viewport so vinyl is crisp, large, and centered!
+      const mobileSize = isCentered
+        ? Math.min(w * 0.78, h * 0.42, 310)
+        : Math.min(w * 0.68, h * 0.36, 260);
+
+      stageSize = Math.max(220, Math.round(mobileSize));
+      targetLeft = Math.round((w - stageSize) / 2);
+      targetTop = isCentered
+        ? Math.round(Math.max(50, (h - stageSize) / 2 - 25))
+        : Math.round(Math.max(45, (h - stageSize) / 2 - 40));
     } else {
-      // Split 50/50 Loaded Mode: Compact size, visual span (jacket + pulled disc) centered in the LEFT 50%
-      const halfW = w / 2;
-      const totalVisualSpan = stageSize * 1.48;
-      targetLeft = Math.max(28, (halfW - totalVisualSpan) / 2);
-      targetTop = (h - stageSize) / 2;
+      const cssVarName = isCentered ? '--stage-size-center' : '--stage-size-split';
+      const computedVal = parseFloat(getComputedStyle(document.documentElement).getPropertyValue(cssVarName));
+      stageSize = computedVal || (isCentered ? 760 : 490);
+
+      if (isCentered) {
+        // Centered Mode: Large size, vinyl disc centered over the cover, center jacket directly in viewport
+        targetLeft = (w - stageSize) / 2;
+        targetTop = (h - stageSize) / 2;
+      } else {
+        // Split 50/50 Loaded Mode: Compact size, visual span (jacket + pulled disc) centered in the LEFT 50%
+        const halfW = w / 2;
+        const totalVisualSpan = stageSize * 1.48;
+        targetLeft = Math.max(28, (halfW - totalVisualSpan) / 2);
+        targetTop = (h - stageSize) / 2;
+      }
     }
 
     return {
@@ -788,10 +797,19 @@
     stageAlbum.className = 'stage-album';
     stageAlbum.dataset.tone = item.tone;
     stageAlbum.classList.remove('is-expanded', 'is-open');
-    stageContentWrap.classList.remove('is-tab-collapsed');
+
+    const isMobile = window.innerWidth <= 680;
+    const initialCollapsed = isMobile && isLoaded;
+
+    stageContentWrap.classList.toggle('is-tab-collapsed', initialCollapsed);
+    if (stageAlbum) {
+      stageAlbum.classList.toggle('is-disc-over-cover', initialCollapsed);
+    }
     if (stageTabToggle) {
-      stageTabToggle.classList.remove('is-collapsed', 'is-playing');
-      stageTabToggle.setAttribute('aria-expanded', 'true');
+      stageTabToggle.classList.toggle('is-collapsed', initialCollapsed);
+      stageTabToggle.classList.remove('is-playing');
+      stageTabToggle.setAttribute('aria-expanded', String(!initialCollapsed));
+      stageTabToggle.title = initialCollapsed ? 'Show tracklist & player' : 'Hide tracklist (center vinyl)';
     }
 
     // Place stage album over clicked spine
@@ -816,7 +834,7 @@
     void stageAlbum.offsetWidth;
 
     // 5. Target position: Get exact calculated target
-    const target = getStageAlbumTargetRect(false);
+    const target = getStageAlbumTargetRect(initialCollapsed);
 
     // 6. Smooth physical spring curve into place
     stageAlbum.style.transition = `
@@ -1032,12 +1050,44 @@
   stageAlbum.addEventListener('click', (e) => {
     e.stopPropagation();
     if (!activeAlbum || isTransitioning) return;
+
+    const isMobile = window.innerWidth <= 680;
+    const isDrawerOpen = stageContentWrap && stageContentWrap.classList.contains('mode-loaded') && !stageContentWrap.classList.contains('is-tab-collapsed');
+
+    // On mobile, if drawer is open, tapping the vinyl collapses the drawer
+    if (isMobile && isDrawerOpen) {
+      setMusicTabCollapsed(true, true);
+      return;
+    }
+
     if (!activeAlbum.customAlbum) {
       spotifyUrlInput.focus();
     } else {
       togglePlayPause();
     }
   });
+
+  // Mobile swipe-to-close gesture on music drawer
+  let drawerTouchStartX = 0;
+  let drawerTouchStartY = 0;
+  const musicDrawerEl = document.getElementById('stageMusicDrawer');
+  if (musicDrawerEl) {
+    musicDrawerEl.addEventListener('touchstart', (e) => {
+      drawerTouchStartX = e.touches[0].clientX;
+      drawerTouchStartY = e.touches[0].clientY;
+    }, { passive: true });
+
+    musicDrawerEl.addEventListener('touchend', (e) => {
+      const touchEndX = e.changedTouches[0].clientX;
+      const touchEndY = e.changedTouches[0].clientY;
+      const dx = touchEndX - drawerTouchStartX;
+      const dy = touchEndY - drawerTouchStartY;
+      // If swiped right by at least 45px and predominantly horizontal:
+      if (dx > 45 && Math.abs(dx) > Math.abs(dy)) {
+        setMusicTabCollapsed(true, true);
+      }
+    }, { passive: true });
+  }
 
   // Clicking away from the album returns it to the shelf!
   inspectionStage.addEventListener('click', (e) => {
@@ -1050,6 +1100,15 @@
     const clickedCloseBtn = e.target.closest('#stageCloseBtn');
 
     if (clickedCloseBtn) return;
+
+    const isMobile = window.innerWidth <= 680;
+    const isDrawerOpen = stageContentWrap && stageContentWrap.classList.contains('mode-loaded') && !stageContentWrap.classList.contains('is-tab-collapsed');
+
+    // On mobile, if the tracklist drawer is open and the user taps the vinyl or background, smoothly collapse the drawer!
+    if (isMobile && isDrawerOpen && !clickedMusicTab && !clickedTabToggle) {
+      setMusicTabCollapsed(true, true);
+      return;
+    }
 
     if (clickedAlbum) {
       if (!activeAlbum.customAlbum) {
