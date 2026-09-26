@@ -27,7 +27,6 @@
   const stageDiscLabel = document.getElementById('stageDiscLabel');
   const stageMusicTab = document.getElementById('stageMusicTab');
   const stageTabToggle = document.getElementById('stageTabToggle');
-  const collapseTabBtn = document.getElementById('collapseTabBtn');
   const musicAlbumTitle = document.getElementById('musicAlbumTitle');
   const musicPlayerFrame = document.getElementById('musicPlayerFrame');
   const stageCloseBtn = document.getElementById('stageCloseBtn');
@@ -500,18 +499,16 @@
 
     if (isMobile) {
       // Mobile: Centered horizontally near top/center
-      const visualWidth = stageSize * 1.35;
-      targetLeft = Math.max(12, (w - visualWidth) / 2);
+      targetLeft = Math.max(12, (w - stageSize) / 2);
       targetTop = Math.max(60, (h - stageSize) / 2 - (collapsed ? 0 : 60));
     } else if (collapsed || (stageContentWrap && stageContentWrap.classList.contains('mode-empty'))) {
-      // Centered Mode: Entire visual span of Jacket + Disc (1.46x) is centered horizontally in viewport
-      const totalVisualSpan = stageSize * 1.46;
-      targetLeft = (w - totalVisualSpan) / 2;
+      // Centered Mode: Vinyl disc is centered over the cover, so center jacket directly in viewport
+      targetLeft = (w - stageSize) / 2;
       targetTop = (h - stageSize) / 2;
     } else {
       // Split 50/50 Loaded Mode: Entire visual span is centered in the LEFT 50% of viewport
       const halfW = w / 2;
-      const totalVisualSpan = stageSize * 1.46;
+      const totalVisualSpan = stageSize * 1.48;
       targetLeft = (halfW - totalVisualSpan) / 2;
       targetTop = (h - stageSize) / 2;
     }
@@ -552,6 +549,9 @@
     if (!activeAlbum || !stageContentWrap || !stageContentWrap.classList.contains('mode-loaded')) return;
 
     stageContentWrap.classList.toggle('is-tab-collapsed', collapsed);
+    if (stageAlbum) {
+      stageAlbum.classList.toggle('is-disc-over-cover', collapsed);
+    }
 
     if (stageTabToggle) {
       stageTabToggle.title = collapsed ? 'Show tracklist & player' : 'Hide tracklist (center vinyl)';
@@ -813,7 +813,7 @@
     stageAlbum.style.pointerEvents = 'none';
 
     // 1. Retract disc, pause audio, stop spinning and close inline edit
-    stageAlbum.classList.remove('is-open');
+    stageAlbum.classList.remove('is-open', 'is-disc-over-cover');
     setVinylSpinning(false);
     inlineEditBar.classList.remove('is-open');
     stageContentWrap.classList.remove('is-tab-collapsed');
@@ -1119,11 +1119,14 @@
     });
   }
 
-  // Smoothly tint the scene background and ambient glow to match the album
+  // Smoothly tint the scene background, ambient glow, and colored vinyl disc to match the album
   function setSceneBackgroundColor(r, g, b, opacity = 0.58) {
     document.documentElement.style.setProperty('--album-r', r);
     document.documentElement.style.setProperty('--album-g', g);
     document.documentElement.style.setProperty('--album-b', b);
+    document.documentElement.style.setProperty('--disc-r', r);
+    document.documentElement.style.setProperty('--disc-g', g);
+    document.documentElement.style.setProperty('--disc-b', b);
     document.documentElement.style.setProperty('--album-glow-opacity', opacity);
 
     if (stageBackdrop) {
@@ -1156,6 +1159,9 @@
   }
 
   function resetSceneBackgroundColor() {
+    document.documentElement.style.setProperty('--disc-r', 18);
+    document.documentElement.style.setProperty('--disc-g', 19);
+    document.documentElement.style.setProperty('--disc-b', 26);
     setSceneBackgroundColor(35, 43, 62, 0.38);
     document.body.style.backgroundColor = 'var(--bg-color)';
     if (stageBackdrop) stageBackdrop.style.background = '';
@@ -1864,14 +1870,6 @@
       e.stopPropagation();
       const isCollapsed = stageContentWrap.classList.contains('is-tab-collapsed');
       setMusicTabCollapsed(!isCollapsed, true);
-    });
-  }
-
-  // Header "Hide" button to manually collapse tab
-  if (collapseTabBtn) {
-    collapseTabBtn.addEventListener('click', (e) => {
-      e.stopPropagation();
-      setMusicTabCollapsed(true, true);
     });
   }
 

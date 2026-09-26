@@ -614,7 +614,7 @@ html, body {
   pointer-events: none;
 }
 
-/* Authentic Black Vinyl Disc */
+/* Authentic Translucent Colored Vinyl Disc (Body tinted with majority/dominant color of the album) */
 .stage-disc {
   position: absolute;
   top: 2%;
@@ -622,19 +622,44 @@ html, body {
   width: 96%;
   height: 96%;
   border-radius: 50%;
-  background: #0e0f13;
+  background: radial-gradient(
+    circle at 50% 50%,
+    rgba(var(--disc-r, 18), var(--disc-g, 19), var(--disc-b, 26), 0.50) 0%,
+    rgba(calc(var(--disc-r, 18) * 0.95), calc(var(--disc-g, 19) * 0.95), calc(var(--disc-b, 26) * 0.95), 0.57) 62%,
+    rgba(calc(var(--disc-r, 18) * 0.8), calc(var(--disc-g, 19) * 0.8), calc(var(--disc-b, 26) * 0.8), 0.65) 100%
+  );
   z-index: 2;
   box-shadow: 
-    0 24px 65px rgba(0, 0, 0, 0.92),
-    inset 0 0 4px rgba(255, 255, 255, 0.14);
+    0 24px 65px rgba(0, 0, 0, 0.88),
+    0 0 35px rgba(var(--disc-r, 0), var(--disc-g, 0), var(--disc-b, 0), 0.28),
+    inset 0 0 14px rgba(255, 255, 255, 0.18),
+    inset 0 0 2px rgba(255, 255, 255, 0.35);
   transform: translateX(0);
   will-change: transform;
-  transition: transform 0.85s var(--ease-spring);
+  transition: transform 0.75s cubic-bezier(0.16, 1, 0.3, 1), box-shadow 0.6s ease, background 0.6s ease;
 }
 
-/* Disc emerges out from jacket smoothly */
+/* Disc emerges out from jacket smoothly in split view */
 .stage-album.is-open .stage-disc {
   transform: translateX(48%);
+}
+
+/* When playing / in centered mode: vinyl disc glides OVER the front of the cover album and spins */
+.stage-album.is-open.is-disc-over-cover .stage-disc {
+  z-index: 5;
+  transform: translateX(0) translateZ(28px) scale(1.02);
+  background: radial-gradient(
+    circle at 50% 50%,
+    rgba(var(--disc-r, 18), var(--disc-g, 19), var(--disc-b, 26), 0.52) 0%,
+    rgba(calc(var(--disc-r, 18) * 0.95), calc(var(--disc-g, 19) * 0.95), calc(var(--disc-b, 26) * 0.95), 0.60) 62%,
+    rgba(calc(var(--disc-r, 18) * 0.8), calc(var(--disc-g, 19) * 0.8), calc(var(--disc-b, 26) * 0.8), 0.68) 100%
+  );
+  box-shadow: 
+    0 32px 85px rgba(0, 0, 0, 0.92),
+    0 12px 32px rgba(0, 0, 0, 0.7),
+    0 0 45px rgba(var(--disc-r, 0), var(--disc-g, 0), var(--disc-b, 0), 0.38),
+    inset 0 0 16px rgba(255, 255, 255, 0.2),
+    inset 0 0 2px rgba(255, 255, 255, 0.4);
 }
 
 /* Spinning Vinyl Assembly - Makes the disc rotate with authentic motion! */
@@ -664,62 +689,36 @@ html, body {
   }
 }
 
-/* Authentic Dual-Beam Anisotropic Specular Highlights & Track Grooves */
+/* Clean Translucent Vinyl Grooves & Subtle Track Rings (Smooth & transparent, no wavy distortion) */
 .disc-grooves {
   position: absolute;
   inset: 0;
   border-radius: 50%;
+  pointer-events: none;
   background: 
-    /* Sweeping high-contrast sheen beam 1 */
-    conic-gradient(
-      from 30deg,
-      rgba(255, 255, 255, 0.32) 0deg,
-      rgba(255, 255, 255, 0.08) 18deg,
-      transparent 38deg,
-      transparent 142deg,
-      rgba(255, 255, 255, 0.09) 162deg,
-      rgba(255, 255, 255, 0.35) 180deg,
-      rgba(255, 255, 255, 0.08) 198deg,
-      transparent 218deg,
-      transparent 322deg,
-      rgba(255, 255, 255, 0.32) 360deg
-    ),
-    /* Sweeping cross-sheen beam 2 */
-    conic-gradient(
-      from 125deg,
-      rgba(255, 255, 255, 0.22) 0deg,
-      transparent 24deg,
-      transparent 156deg,
-      rgba(255, 255, 255, 0.24) 180deg,
-      transparent 204deg,
-      transparent 336deg,
-      rgba(255, 255, 255, 0.22) 360deg
-    ),
-    /* Vinyl track gap bands */
+    /* Outer subtle gloss bevel */
     radial-gradient(
       circle at 50% 50%,
       transparent 0%,
-      transparent 32%,
-      rgba(0, 0, 0, 0.65) 32.5%,
-      rgba(255, 255, 255, 0.08) 33%,
-      transparent 34%,
-      transparent 52%,
-      rgba(0, 0, 0, 0.7) 52.5%,
-      rgba(255, 255, 255, 0.09) 53%,
-      transparent 54%,
-      transparent 73%,
-      rgba(0, 0, 0, 0.7) 73.5%,
-      rgba(255, 255, 255, 0.1) 74%,
-      transparent 75%
+      transparent 95.5%,
+      rgba(255, 255, 255, 0.25) 96.5%,
+      transparent 97.5%
     ),
-    /* Physical concentric microgrooves */
-    repeating-radial-gradient(
+    /* Discrete track gap bands (clean & subtle) */
+    radial-gradient(
       circle at 50% 50%,
-      #15161c 0px,
-      #15161c 1.5px,
-      #08080a 2px,
-      #08080a 3.5px
+      transparent 0%,
+      transparent 33%,
+      rgba(255, 255, 255, 0.08) 33.6%,
+      transparent 34.2%,
+      transparent 53%,
+      rgba(255, 255, 255, 0.08) 53.6%,
+      transparent 54.2%,
+      transparent 73%,
+      rgba(255, 255, 255, 0.08) 73.6%,
+      transparent 74.2%
     );
+  box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.15);
 }
 
 /* Disc Center Label */
@@ -1044,19 +1043,6 @@ html, body {
 }
 
 .stage-tab-toggle:hover .toggle-text {
-  color: #ffffff;
-}
-
-/* Collapse button in header row */
-.collapse-tab-btn {
-  background: rgba(255, 255, 255, 0.06);
-  border-color: rgba(255, 255, 255, 0.12);
-  color: rgba(255, 255, 255, 0.75);
-}
-
-.collapse-tab-btn:hover {
-  background: rgba(255, 255, 255, 0.14);
-  border-color: rgba(255, 255, 255, 0.25);
   color: #ffffff;
 }
 
@@ -1960,6 +1946,10 @@ html, body {
 
   .stage-album.is-open .stage-disc {
     transform: translateX(36%);
+  }
+
+  .stage-album.is-open.is-disc-over-cover .stage-disc {
+    transform: translateX(0) translateZ(24px) scale(1.02);
   }
 }
 
