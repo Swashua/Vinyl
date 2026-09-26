@@ -1294,37 +1294,11 @@
           'onStateChange': onYtPlayerStateChange,
           'onError': (e) => {
             console.warn('YouTube Audio Player error:', e);
+            // If current video has error, try secondary query
             const curTrack = activeAlbumTracks[currentTrackIdx];
-            if (curTrack && curTrack.previewUrl && nativeAudioPlayer) {
-              try {
-                nativeAudioPlayer.src = curTrack.previewUrl;
-                nativeAudioPlayer.play().then(() => {
-                  isFullSongPlaying = true;
-                  updateAudioPlaybackUI(true);
-                  setVinylSpinning(true);
-                  if (tracklistBadgeText) {
-                    tracklistBadgeText.textContent = `Playing: ${curTrack.title}`;
-                  }
-                }).catch(() => {
-                  isFullSongPlaying = false;
-                  updateAudioPlaybackUI(false);
-                  setVinylSpinning(false);
-                  if (tracklistBadgeText) {
-                    tracklistBadgeText.textContent = `Unavailable: ${curTrack.title}`;
-                  }
-                });
-              } catch (_) {
-                isFullSongPlaying = false;
-                updateAudioPlaybackUI(false);
-                setVinylSpinning(false);
-              }
-            } else {
-              isFullSongPlaying = false;
-              updateAudioPlaybackUI(false);
-              setVinylSpinning(false);
-              if (tracklistBadgeText && curTrack) {
-                tracklistBadgeText.textContent = `Unavailable: ${curTrack.title}`;
-              }
+            if (curTrack) {
+              curTrack.videoId = null;
+              ytCurrentVideoId = null;
             }
           }
         }
@@ -1830,40 +1804,19 @@
       tracklistBadgeText.textContent = `Playing: ${track.title}`;
     }
 
-    // Helper: start authentic direct audio stream playback
-    const playNativeAudio = () => {
-      if (track.previewUrl && nativeAudioPlayer) {
-        try {
-          nativeAudioPlayer.src = track.previewUrl;
-          if (autoPlay) {
-            nativeAudioPlayer.play().then(() => {
-              isFullSongPlaying = true;
-              updateAudioPlaybackUI(true);
-              setVinylSpinning(true);
-              if (tracklistBadgeText) {
-                tracklistBadgeText.textContent = `Playing: ${track.title}`;
-              }
-            }).catch(() => {
-              isFullSongPlaying = false;
-              updateAudioPlaybackUI(false);
-              setVinylSpinning(false);
-            });
-          } else {
-            updateAudioPlaybackUI(false);
-          }
-          return true;
-        } catch (_) {}
-      }
-      return false;
-    };
-
-    // Helper to safely play/cue track in YouTube Player
+    // Helper to safely play/cue track in YouTube Player at the beginning (0:00)
     const loadAndPlayYt = (vid) => {
       if (!ytPlayer || typeof ytPlayer.loadVideoById !== 'function') return false;
       try {
         ytCurrentVideoId = vid;
         if (autoPlay) {
-          ytPlayer.loadVideoById(vid);
+          ytPlayer.loadVideoById({
+            videoId: vid,
+            startSeconds: 0
+          });
+          if (typeof ytPlayer.seekTo === 'function') {
+            ytPlayer.seekTo(0, true);
+          }
           ytPlayer.playVideo();
           isFullSongPlaying = true;
           updateAudioPlaybackUI(true);
@@ -1872,7 +1825,10 @@
             tracklistBadgeText.textContent = `Playing: ${track.title}`;
           }
         } else {
-          ytPlayer.cueVideoById(vid);
+          ytPlayer.cueVideoById({
+            videoId: vid,
+            startSeconds: 0
+          });
           updateAudioPlaybackUI(false);
         }
         return true;
@@ -1882,49 +1838,54 @@
       }
     };
 
-    // 1. Check if videoId is already known
+    // 1. If video ID is already cached on this track, play immediately starting at 0:00!
     let videoId = track.videoId || null;
-
-    // If already known and player ready -> play YouTube immediately!
-    if (videoId && ytPlayer && ytPlayerReady) {
-      if (loadAndPlayYt(videoId)) return;
-    }
-
-    // 2. If track has direct previewUrl, start playing it immediately so user gets music instantly!
-    if (track.previewUrl && autoPlay) {
-      playNativeAudio();
-    }
-
-    // 3. Resolve video ID in background if not known
-    if (!videoId) {
-      videoId = await fetchFullTrackVideoId(track);
-    }
-
     if (videoId && ytPlayer && ytPlayerReady) {
       if (loadAndPlayYt(videoId)) {
-        if (nativeAudioPlayer && !nativeAudioPlayer.paused) {
-          nativeAudioPlayer.pause();
+        // Pre-fetch next track videoId in background for zero-delay auto-advance
+        const nextTrack = activeAlbumTracks[(idx + 1) % activeAlbumTracks.length];
+        if (nextTrack && !nextTrack.videoId) {
+          fetchFullTrackVideoId(nextTrack).catch(() => {});
         }
         return;
       }
     }
 
-    // 4. If YouTube didn't load and no previewUrl yet, fetch track's official audio from iTunes
-    if (!track.previewUrl && track.title) {
-      try {
-        const searchQ = `${track.artist} ${track.title}`.trim();
-        const itRes = await fetch(`https://itunes.apple.com/search?term=${encodeURIComponent(searchQ)}&entity=song&limit=1`);
-        if (itRes.ok) {
-          const itData = await itRes.json();
-          if (itData.results && itData.results.length > 0 && itData.results[0].previewUrl) {
-            track.previewUrl = itData.results[0].previewUrl;
-            if (currentTrackIdx === idx && autoPlay) {
-              playNativeAudio();
-              return;
-            }
+    if (autoPlay) {
+      isFullSongPlaying = true;
+      updateAudioPlaybackUI(true);
+      setVinylSpinning(true);
+    }
+
+    // 2. Resolve YouTube video ID for this song
+    if (!videoId) {
+      videoId = await fetchFullTrackVideoId(track);
+    }
+
+    if (videoId) {
+      if (ytPlayer && ytPlayerReady) {
+        if (loadAndPlayYt(videoId)) {
+          // Pre-fetch next track videoId in background
+          const nextTrack = activeAlbumTracks[(idx + 1) % activeAlbumTracks.length];
+          if (nextTrack && !nextTrack.videoId) {
+            fetchFullTrackVideoId(nextTrack).catch(() => {});
           }
+          return;
         }
-      } catch (_) {}
+      } else {
+        // YT iframe is initializing, poll briefly for ready state
+        let waited = 0;
+        const readyChecker = setInterval(() => {
+          waited += 60;
+          if (ytPlayer && ytPlayerReady) {
+            clearInterval(readyChecker);
+            loadAndPlayYt(videoId);
+          } else if (waited >= 3000) {
+            clearInterval(readyChecker);
+          }
+        }, 60);
+        return;
+      }
     }
 
     if (autoPlay) {
@@ -2015,7 +1976,7 @@
     updateAudioPlaybackUI(false);
   }
 
-  // --- Play/Pause Toggle Helper (Instant Pause & Resume) ---
+  // --- Play/Pause Toggle Helper (Instant Pause & Resume from current position) ---
   async function togglePlayPause() {
     initWebAudio();
 
@@ -2036,7 +1997,7 @@
       return;
     }
 
-    // 2. If paused and track is already loaded in YouTube player -> Resume immediately!
+    // 2. If paused and track is already loaded in YouTube player -> Resume from exact timestamp!
     if (ytCurrentVideoId && ytPlayer && ytPlayerReady && typeof ytPlayer.playVideo === 'function') {
       try {
         ytPlayer.playVideo();
@@ -2046,22 +2007,11 @@
         startProgressTracking();
         return;
       } catch (err) {
-        console.warn('Error resuming YT player, falling back to preview:', err);
+        console.warn('Error resuming YT player, restarting track:', err);
       }
     }
 
-    // 3. If native audio element has a src loaded -> resume it
-    if (nativeAudioPlayer && nativeAudioPlayer.src && nativeAudioPlayer.paused) {
-      try {
-        await nativeAudioPlayer.play();
-        isFullSongPlaying = true;
-        setVinylSpinning(true);
-        updateAudioPlaybackUI(true);
-        return;
-      } catch (_) {}
-    }
-
-    // 4. Otherwise, select and load current track with autoplay
+    // 3. Otherwise, select and load current track starting from the beginning (0:00)
     selectTrack(currentTrackIdx, true);
   }
 
