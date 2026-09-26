@@ -384,31 +384,48 @@
           }
         }
       } catch (backendErr) {
-        console.warn('Backend Spotify fetch error, falling back to direct oEmbed:', backendErr);
+        console.warn('Backend Spotify fetch error, falling back to direct oEmbed & iTunes/Deezer:', backendErr);
       }
 
-      // 2. Client-side direct Spotify official public oEmbed API (CORS enabled)
-      if (!data || !data.coverUrl || !data.title) {
+      // 2. Client-side direct Spotify official public oEmbed API + iTunes/Deezer fallback
+      if (!data || !data.tracks || data.tracks.length <= 1) {
         try {
           const oembedUrl = `https://open.spotify.com/oembed?url=${encodeURIComponent(cleanSpotifyUrl)}`;
           const oembedRes = await fetch(oembedUrl);
           if (oembedRes.ok) {
             const odata = await oembedRes.json();
-            data = {
-              title: (data && data.title) || odata.title || (parsed.type === 'playlist' ? 'Custom Playlist' : 'Spotify Music'),
-              artist: (data && data.artist) || odata.author_name || '',
-              coverUrl: (data && data.coverUrl) || odata.thumbnail_url || '',
-              tracks: (data && data.tracks && data.tracks.length > 0) ? data.tracks : [
-                {
-                  title: odata.title || 'Track 1',
-                  artist: odata.author_name || '',
-                  durationMs: 210000,
-                  durationStr: '3:30',
-                  spotifyUri: cleanSpotifyUrl,
-                  isPlayable: true
-                }
-              ]
-            };
+            const oTitle = odata.title || (data && data.title) || '';
+            const oArtist = odata.author_name || (data && data.artist) || '';
+            const oCover = odata.thumbnail_url || (data && data.coverUrl) || '';
+
+            // Query iTunes / Deezer for full authentic tracks
+            const fullAlb = await fetchFullAlbumTracklist(oTitle, oArtist);
+            if (fullAlb && fullAlb.tracks && fullAlb.tracks.length > 0) {
+              data = {
+                title: oTitle || fullAlb.title || 'Music Album',
+                artist: oArtist || fullAlb.artist || '',
+                coverUrl: fullAlb.coverUrl || oCover || '',
+                tracks: fullAlb.tracks
+              };
+            } else {
+              data = {
+                title: oTitle || (data && data.title) || (parsed.type === 'playlist' ? 'Custom Playlist' : 'Spotify Music'),
+                artist: oArtist || (data && data.artist) || '',
+                coverUrl: oCover || (data && data.coverUrl) || '',
+                tracks: (data && data.tracks && data.tracks.length > 0) ? data.tracks : [
+                  {
+                    number: 1,
+                    title: oTitle || 'Track 1',
+                    artist: oArtist || '',
+                    durationMs: 210000,
+                    durationStr: '3:30',
+                    previewUrl: '',
+                    spotifyUri: cleanSpotifyUrl,
+                    isPlayable: true
+                  }
+                ]
+              };
+            }
           }
         } catch (oembedErr) {
           console.warn('Spotify oEmbed fetch error:', oembedErr);
@@ -1810,11 +1827,11 @@
     }
 
     if (autoPlay && tracklistBadgeText) {
-      tracklistBadgeText.textContent = `Loading: ${track.title}...`;
+      tracklistBadgeText.textContent = `Playing: ${track.title}`;
     }
 
-    // Helper to play the authentic audio stream preview directly
-    const playViaPreview = () => {
+    // Helper: start authentic direct audio stream playback
+    const playNativeAudio = () => {
       if (track.previewUrl && nativeAudioPlayer) {
         try {
           nativeAudioPlayer.src = track.previewUrl;
@@ -1830,9 +1847,6 @@
               isFullSongPlaying = false;
               updateAudioPlaybackUI(false);
               setVinylSpinning(false);
-              if (tracklistBadgeText) {
-                tracklistBadgeText.textContent = `Unavailable: ${track.title}`;
-              }
             });
           } else {
             updateAudioPlaybackUI(false);
@@ -1842,12 +1856,6 @@
       }
       return false;
     };
-
-    // 1. Check if videoId is already known or fetch it for exact match
-    let videoId = track.videoId || null;
-    if (!videoId) {
-      videoId = await fetchFullTrackVideoId(track);
-    }
 
     // Helper to safely play/cue track in YouTube Player
     const loadAndPlayYt = (vid) => {
@@ -1860,6 +1868,9 @@
           isFullSongPlaying = true;
           updateAudioPlaybackUI(true);
           setVinylSpinning(true);
+          if (tracklistBadgeText) {
+            tracklistBadgeText.textContent = `Playing: ${track.title}`;
+          }
         } else {
           ytPlayer.cueVideoById(vid);
           updateAudioPlaybackUI(false);
@@ -1871,41 +1882,55 @@
       }
     };
 
-    if (videoId) {
-      if (ytPlayer && ytPlayerReady) {
-        if (loadAndPlayYt(videoId)) return;
-      } else {
-        // YT iframe is initializing, poll briefly for ready state
-        let waited = 0;
-        const readyChecker = setInterval(() => {
-          waited += 80;
-          if (ytPlayer && ytPlayerReady) {
-            clearInterval(readyChecker);
-            loadAndPlayYt(videoId);
-          } else if (waited >= 2200) {
-            clearInterval(readyChecker);
-            if (!playViaPreview()) {
-              isFullSongPlaying = false;
-              updateAudioPlaybackUI(false);
-              if (tracklistBadgeText) tracklistBadgeText.textContent = `Unavailable: ${track.title}`;
-            }
-          }
-        }, 80);
+    // 1. Check if videoId is already known
+    let videoId = track.videoId || null;
+
+    // If already known and player ready -> play YouTube immediately!
+    if (videoId && ytPlayer && ytPlayerReady) {
+      if (loadAndPlayYt(videoId)) return;
+    }
+
+    // 2. If track has direct previewUrl, start playing it immediately so user gets music instantly!
+    if (track.previewUrl && autoPlay) {
+      playNativeAudio();
+    }
+
+    // 3. Resolve video ID in background if not known
+    if (!videoId) {
+      videoId = await fetchFullTrackVideoId(track);
+    }
+
+    if (videoId && ytPlayer && ytPlayerReady) {
+      if (loadAndPlayYt(videoId)) {
+        if (nativeAudioPlayer && !nativeAudioPlayer.paused) {
+          nativeAudioPlayer.pause();
+        }
         return;
       }
     }
 
-    // 2. Play authentic audio stream if YouTube video is not available
-    if (playViaPreview()) {
-      return;
+    // 4. If YouTube didn't load and no previewUrl yet, fetch track's official audio from iTunes
+    if (!track.previewUrl && track.title) {
+      try {
+        const searchQ = `${track.artist} ${track.title}`.trim();
+        const itRes = await fetch(`https://itunes.apple.com/search?term=${encodeURIComponent(searchQ)}&entity=song&limit=1`);
+        if (itRes.ok) {
+          const itData = await itRes.json();
+          if (itData.results && itData.results.length > 0 && itData.results[0].previewUrl) {
+            track.previewUrl = itData.results[0].previewUrl;
+            if (currentTrackIdx === idx && autoPlay) {
+              playNativeAudio();
+              return;
+            }
+          }
+        }
+      } catch (_) {}
     }
 
-    // 3. Audio unavailable for this specific track
-    isFullSongPlaying = false;
-    updateAudioPlaybackUI(false);
-    setVinylSpinning(false);
-    if (tracklistBadgeText) {
-      tracklistBadgeText.textContent = `Unavailable: ${track.title}`;
+    if (autoPlay) {
+      updateAudioPlaybackUI(true);
+      setVinylSpinning(true);
+      if (tracklistBadgeText) tracklistBadgeText.textContent = `Playing: ${track.title}`;
     }
   }
 
