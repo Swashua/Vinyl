@@ -310,7 +310,7 @@
                 </div>
               </div>
               <div class="music-player-wrapper" id="musicPlayerWrapper">
-                <!-- Native HTML5 audio element for actual real-time volume manipulation -->
+                <!-- Native HTML5 audio element for instant playback & real-time volume manipulation -->
                 <audio id="nativeAudioPlayer" preload="auto"></audio>
 
                 <!-- Native Spotify-Styled Player (With full volume control, seek bar, and tracklist) -->
@@ -363,7 +363,7 @@
                       <div class="progress-bar-fill" id="progressBarFill" style="width: 0%;"></div>
                       <div class="progress-bar-thumb" id="progressBarThumb" style="left: 0%;"></div>
                     </div>
-                    <span class="progress-time" id="progressDurationTime">-0:30</span>
+                    <span class="progress-time" id="progressDurationTime">-0:00</span>
                   </div>
 
                   <!-- Thin Volume Slider Bar (Directly below progress bar, matching Screenshot 025431) -->
@@ -387,10 +387,6 @@
                       <!-- Tracks dynamically injected -->
                     </div>
                   </div>
-                </div>
-
-                <div class="music-player-frame" id="musicPlayerFrame" style="display:none;">
-                  <!-- Spotify Embed fallback container -->
                 </div>
               </div>
             </div>
