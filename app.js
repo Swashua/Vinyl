@@ -86,10 +86,33 @@
   // v2: wiped v1 stale iTunes data — Spotify only from here on
   const STORAGE_KEY = 'disc_saved_albums_v2';
 
+  // Helper to upgrade any low-res / thumbnail Spotify image URL to full maximum resolution (640x640 HD)
+  function upgradeSpotifyImageUrl(url) {
+    if (!url || typeof url !== 'string') return url;
+    let upgraded = url;
+    // Spotify album/track covers: 64x64 (4851) & 300x300 (1e02) -> 640x640 (b273)
+    upgraded = upgraded.replace(/ab67616d00004851/g, 'ab67616d0000b273');
+    upgraded = upgraded.replace(/ab67616d00001e02/g, 'ab67616d0000b273');
+    // Spotify artist images: 64x64 (f68d) & 300x300 (5174) -> 640x640 (e5eb)
+    upgraded = upgraded.replace(/ab6761610000f68d/g, 'ab6761610000e5eb');
+    upgraded = upgraded.replace(/ab67616100005174/g, 'ab6761610000e5eb');
+    // Spotify playlist/user custom images: 300x300 (bebb) -> 640x640 (da84)
+    upgraded = upgraded.replace(/ab67706c0000bebb/g, 'ab67706c0000da84');
+    upgraded = upgraded.replace(/ab67706f00000002/g, 'ab67706f00000000');
+    return upgraded;
+  }
+
   function getSavedAlbums() {
     try {
       const data = localStorage.getItem(STORAGE_KEY);
-      return data ? JSON.parse(data) : {};
+      if (!data) return {};
+      const parsed = JSON.parse(data);
+      for (const k of Object.keys(parsed)) {
+        if (parsed[k] && parsed[k].coverUrl) {
+          parsed[k].coverUrl = upgradeSpotifyImageUrl(parsed[k].coverUrl);
+        }
+      }
+      return parsed;
     } catch (e) {
       console.warn('Could not read from localStorage', e);
       return {};
@@ -399,7 +422,7 @@
       albumData = {
         title: data.title || (parsed.type === 'playlist' ? 'Custom Playlist' : 'Spotify Music'),
         artist: data.artist || '',
-        coverUrl: data.coverUrl || '',
+        coverUrl: upgradeSpotifyImageUrl(data.coverUrl || ''),
         spotifyUrl: cleanSpotifyUrl,
         type: parsed.type,
         id: parsed.id,
@@ -2115,18 +2138,164 @@
     });
   }
 
-  // Initialize YouTube player engine
-  initYouTubePlayer();
+  // ==========================================================================
+  // Cosmic Universe: Steady Starfield & Shooting Stars Engine
+  // ==========================================================================
+  function initCosmos() {
+    const canvas = document.getElementById('cosmosCanvas');
+    if (!canvas) return;
+    const ctx = canvas.getContext('2d');
+    if (!ctx) return;
 
-  // Initialize volume state
-  setVolume(currentVolume, false);
+    let width = 0;
+    let height = 0;
+    let dpr = 1;
+    let stars = [];
+    let meteors = [];
 
-  // Hook for smooth intro entry glide
-  window.triggerCarouselIntroImpulse = () => {
-    angularVelocity = 0.45;
-  };
+    // Star Spectral Colors (Calm, natural cosmic points of light)
+    const starColors = [
+      '#ffffff', // Diamond White
+      '#f0f4ff', // Crisp Starlight
+      '#dbeafe', // Ice Blue
+      '#fef3c7', // Warm Amber
+      '#f3e8ff', // Cosmic Violet
+      '#c7d2fe'  // Soft Indigo
+    ];
+
+    function resize() {
+      width = window.innerWidth;
+      height = window.innerHeight;
+      dpr = Math.min(window.devicePixelRatio || 1, 2);
+      canvas.width = Math.round(width * dpr);
+      canvas.height = Math.round(height * dpr);
+      ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+      createStarfield();
+    }
+
+    function createStarfield() {
+      stars = [];
+      const starCount = Math.floor((width * height) / 3600) + 180;
+
+      for (let i = 0; i < starCount; i++) {
+        const isCluster = Math.random() < 0.18;
+        const isBright = Math.random() < 0.12;
+        stars.push({
+          x: Math.random() * width,
+          y: Math.random() * height,
+          r: isBright ? (Math.random() * 0.9 + 1.1) : (isCluster ? (Math.random() * 0.6 + 0.6) : (Math.random() * 0.45 + 0.35)),
+          alpha: isBright ? (Math.random() * 0.25 + 0.72) : (Math.random() * 0.45 + 0.32),
+          color: starColors[Math.floor(Math.random() * starColors.length)],
+          depth: Math.random() * 0.35 + 0.45
+        });
+      }
+    }
+
+    function spawnMeteor() {
+      const startX = Math.random() * width * 0.8 + width * 0.1;
+      const startY = Math.random() * height * 0.35;
+      const length = Math.random() * 150 + 110;
+      const angle = (Math.PI / 4) + (Math.random() * 0.26 - 0.13);
+      const speed = Math.random() * 7 + 12;
+
+      meteors.push({
+        x: startX,
+        y: startY,
+        dx: Math.cos(angle) * speed,
+        dy: Math.sin(angle) * speed,
+        length: length,
+        life: 1.0,
+        decay: Math.random() * 0.015 + 0.012
+      });
+    }
+
+    let lastMeteorTime = performance.now();
+    let meteorInterval = Math.random() * 8000 + 8000;
+
+    function render(now) {
+      ctx.clearRect(0, 0, width, height);
+
+      // Continuous, infinite parallax shift (no modulo reset, totally seamless)
+      const rot = (typeof currentRotation === 'number') ? currentRotation : 0;
+      const rotShift = rot * 1.1;
+
+      // 1. Draw Steady Stars (No blinking, calm constant starlight, infinite seamless wrapping)
+      for (let i = 0; i < stars.length; i++) {
+        const s = stars[i];
+
+        // Wrap continuously across canvas width
+        let rawX = s.x + rotShift * s.depth;
+        let drawX = ((rawX % width) + width) % width;
+
+        // Star Core
+        ctx.fillStyle = s.color;
+        ctx.globalAlpha = s.alpha;
+        ctx.beginPath();
+        ctx.arc(drawX, s.y, s.r, 0, Math.PI * 2);
+        ctx.fill();
+
+        // Subtle stationary halo on larger stars
+        if (s.r > 1.2) {
+          ctx.fillStyle = s.color;
+          ctx.globalAlpha = s.alpha * 0.22;
+          ctx.beginPath();
+          ctx.arc(drawX, s.y, s.r * 2.5, 0, Math.PI * 2);
+          ctx.fill();
+        }
+      }
+
+      // 2. Draw Meteors / Shooting Stars
+      if (now - lastMeteorTime > meteorInterval) {
+        spawnMeteor();
+        lastMeteorTime = now;
+        meteorInterval = Math.random() * 9000 + 7000;
+      }
+
+      for (let m = meteors.length - 1; m >= 0; m--) {
+        const met = meteors[m];
+        met.x += met.dx;
+        met.y += met.dy;
+        met.life -= met.decay;
+
+        if (met.life <= 0 || met.x > width + 200 || met.y > height + 200) {
+          meteors.splice(m, 1);
+          continue;
+        }
+
+        const tailX = met.x - (met.dx / Math.hypot(met.dx, met.dy)) * met.length;
+        const tailY = met.y - (met.dy / Math.hypot(met.dx, met.dy)) * met.length;
+
+        const mGrad = ctx.createLinearGradient(tailX, tailY, met.x, met.y);
+        mGrad.addColorStop(0, 'rgba(255, 255, 255, 0)');
+        mGrad.addColorStop(0.7, 'rgba(180, 230, 255, 0.45)');
+        mGrad.addColorStop(1, 'rgba(255, 255, 255, 0.95)');
+
+        ctx.strokeStyle = mGrad;
+        ctx.lineWidth = 1.7;
+        ctx.globalAlpha = met.life;
+        ctx.beginPath();
+        ctx.moveTo(tailX, tailY);
+        ctx.lineTo(met.x, met.y);
+        ctx.stroke();
+
+        ctx.fillStyle = '#ffffff';
+        ctx.globalAlpha = met.life;
+        ctx.beginPath();
+        ctx.arc(met.x, met.y, 2.0, 0, Math.PI * 2);
+        ctx.fill();
+      }
+
+      ctx.globalAlpha = 1;
+      requestAnimationFrame(render);
+    }
+
+    window.addEventListener('resize', resize);
+    resize();
+    requestAnimationFrame(render);
+  }
 
   // --- Bootstrap ---
+  initCosmos();
   initCircle();
   requestAnimationFrame(updatePhysics);
 })();

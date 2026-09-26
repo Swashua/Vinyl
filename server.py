@@ -159,18 +159,27 @@ class DiscHTTPRequestHandler(http.server.SimpleHTTPRequestHandler):
                         except Exception:
                             pass
 
-                # Safe cover extraction
+                # Safe cover extraction (highest quality source)
                 cover_url = ''
                 ca = entity.get('coverArt')
                 if isinstance(ca, dict):
                     sources = ca.get('sources')
                     if sources and isinstance(sources, list) and len(sources) > 0 and isinstance(sources[0], dict):
-                        cover_url = str(sources[0].get('url', ''))
+                        # Sort by width descending
+                        try:
+                            sorted_sources = sorted(sources, key=lambda s: s.get('width', 0), reverse=True)
+                            cover_url = str(sorted_sources[0].get('url', ''))
+                        except Exception:
+                            cover_url = str(sources[0].get('url', ''))
                 
                 if not cover_url:
                     imgs = entity.get('images')
                     if isinstance(imgs, list) and len(imgs) > 0 and isinstance(imgs[0], dict):
-                        cover_url = str(imgs[0].get('url', ''))
+                        try:
+                            sorted_imgs = sorted(imgs, key=lambda s: s.get('width', 0), reverse=True)
+                            cover_url = str(sorted_imgs[0].get('url', ''))
+                        except Exception:
+                            cover_url = str(imgs[0].get('url', ''))
 
                 # Fallback to oEmbed for cover/title if missing
                 if not cover_url or not entity.get('title'):
@@ -185,6 +194,15 @@ class DiscHTTPRequestHandler(http.server.SimpleHTTPRequestHandler):
                                 entity['title'] = str(odata.get('title'))
                     except Exception:
                         pass
+
+                # Upgrade Spotify CDN images to full 640x640 HD
+                if cover_url:
+                    cover_url = re.sub(r'ab67616d00004851', 'ab67616d0000b273', cover_url)
+                    cover_url = re.sub(r'ab67616d00001e02', 'ab67616d0000b273', cover_url)
+                    cover_url = re.sub(r'ab6761610000f68d', 'ab6761610000e5eb', cover_url)
+                    cover_url = re.sub(r'ab67616100005174', 'ab6761610000e5eb', cover_url)
+                    cover_url = re.sub(r'ab67706c0000bebb', 'ab67706c0000da84', cover_url)
+                    cover_url = re.sub(r'ab67706f00000002', 'ab67706f00000000', cover_url)
 
                 # Sanitize coverUrl (must be valid http/https URL)
                 if cover_url and not (cover_url.startswith('https://') or cover_url.startswith('http://')):

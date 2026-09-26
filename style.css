@@ -27,11 +27,11 @@
 }
 
 :root {
-  --bg-color: #07080b;
+  --bg-color: #030408;
   --perspective: 1200px;
-  --spine-width: clamp(20px, 2.4vw, 28px);
+  --spine-width: clamp(12px, 1.4vw, 17px);
   --spine-height: clamp(480px, 60vh, 660px);
-  --spine-depth: 10px;
+  --spine-depth: 7px;
   --stage-size-center: clamp(680px, min(56vw, 84vh), 960px);
   --stage-size-split: clamp(420px, min(30vw, 58vh), 540px);
   --stage-size: var(--stage-size-center);
@@ -69,18 +69,74 @@ html, body {
   transition: background-color 0.85s cubic-bezier(0.16, 1, 0.3, 1);
 }
 
+/* ==========================================================================
+   Cosmic Universe: Infinite Seamless Starfield & Deep Space Backdrop
+   ========================================================================== */
+.cosmos-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 0;
+  pointer-events: none;
+  overflow: hidden;
+  background: radial-gradient(ellipse at 50% 30%, #060814 0%, #030408 60%, #010103 100%);
+}
+
+.cosmos-canvas {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  pointer-events: none;
+}
+
+.nebula-cloud {
+  position: absolute;
+  border-radius: 50%;
+  filter: blur(85px);
+  opacity: 0.35;
+  pointer-events: none;
+  mix-blend-mode: screen;
+  will-change: transform, opacity;
+  animation: nebulaDrift 24s ease-in-out infinite alternate;
+}
+
+.nebula-cloud-1 {
+  top: 8%;
+  left: 12%;
+  width: min(750px, 65vw);
+  height: min(750px, 65vw);
+  background: radial-gradient(circle, rgba(124, 58, 237, 0.18) 0%, rgba(67, 56, 202, 0.1) 45%, transparent 70%);
+}
+
+.nebula-cloud-2 {
+  bottom: 6%;
+  right: 10%;
+  width: min(850px, 75vw);
+  height: min(850px, 75vw);
+  background: radial-gradient(circle, rgba(14, 165, 233, 0.16) 0%, rgba(99, 102, 241, 0.08) 50%, transparent 70%);
+  animation-delay: -10s;
+  animation-duration: 30s;
+}
+
+@keyframes nebulaDrift {
+  0% { transform: translate(0, 0) scale(1); opacity: 0.28; }
+  50% { transform: translate(30px, -20px) scale(1.08); opacity: 0.45; }
+  100% { transform: translate(-20px, 25px) scale(0.95); opacity: 0.32; }
+}
+
 /* Atmospheric Studio Lighting - Dynamically adapts to Album Main Color! */
 .ambient-glow {
   position: fixed;
   inset: 0;
   background: radial-gradient(
     circle at 50% 45%,
-    rgba(var(--album-r), var(--album-g), var(--album-b), var(--album-glow-opacity)) 0%,
-    rgba(var(--album-r), var(--album-g), var(--album-b), calc(var(--album-glow-opacity) * 0.4)) 42%,
-    rgba(7, 8, 11, 0.98) 78%
+    rgba(var(--album-r), var(--album-g), var(--album-b), calc(var(--album-glow-opacity) * 0.72)) 0%,
+    rgba(var(--album-r), var(--album-g), var(--album-b), calc(var(--album-glow-opacity) * 0.22)) 42%,
+    transparent 80%
   );
   pointer-events: none;
   z-index: 1;
+  mix-blend-mode: screen;
   transition: background 0.85s cubic-bezier(0.16, 1, 0.3, 1);
 }
 
@@ -93,12 +149,13 @@ html, body {
   height: 90vh;
   background: radial-gradient(
     ellipse at 50% 0%,
-    rgba(var(--album-r), var(--album-g), var(--album-b), 0.38) 0%,
-    rgba(255, 255, 255, 0.05) 30%,
+    rgba(var(--album-r), var(--album-g), var(--album-b), 0.35) 0%,
+    rgba(255, 255, 255, 0.04) 30%,
     transparent 68%
   );
   pointer-events: none;
   z-index: 2;
+  mix-blend-mode: screen;
   transition: background 0.85s cubic-bezier(0.16, 1, 0.3, 1);
 }
 
@@ -200,7 +257,10 @@ html, body {
   inset: 0;
   background: linear-gradient(180deg, #252834 0%, #181a22 50%, #111218 100%);
   background-size: cover;
-  background-position: center;
+  background-position: center top;
+  background-repeat: no-repeat;
+  image-rendering: -webkit-optimize-contrast;
+  image-rendering: high-quality;
 }
 
 .spine-fold-left {
@@ -582,6 +642,8 @@ html, body {
   background-size: cover;
   background-position: center;
   background-repeat: no-repeat;
+  image-rendering: -webkit-optimize-contrast;
+  image-rendering: high-quality;
 }
 
 /* Ring wear imprint */
@@ -736,6 +798,8 @@ html, body {
   background-size: cover;
   background-position: center;
   background-repeat: no-repeat;
+  image-rendering: -webkit-optimize-contrast;
+  image-rendering: high-quality;
   box-shadow: 
     inset 0 0 10px rgba(0, 0, 0, 0.75),
     0 0 0 1px rgba(255, 255, 255, 0.18);

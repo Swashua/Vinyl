@@ -54,14 +54,29 @@ module.exports = async (req, res) => {
       }
     }
 
-    // Cover Art extraction
+    // Helper to upgrade low-res Spotify image URLs to full maximum resolution (640x640 HD)
+    function upgradeSpotifyImageUrl(url) {
+      if (!url || typeof url !== 'string') return url;
+      let upgraded = url;
+      upgraded = upgraded.replace(/ab67616d00004851/g, 'ab67616d0000b273');
+      upgraded = upgraded.replace(/ab67616d00001e02/g, 'ab67616d0000b273');
+      upgraded = upgraded.replace(/ab6761610000f68d/g, 'ab6761610000e5eb');
+      upgraded = upgraded.replace(/ab67616100005174/g, 'ab6761610000e5eb');
+      upgraded = upgraded.replace(/ab67706c0000bebb/g, 'ab67706c0000da84');
+      upgraded = upgraded.replace(/ab67706f00000002/g, 'ab67706f00000000');
+      return upgraded;
+    }
+
+    // Cover Art extraction (pick highest resolution source)
     let coverUrl = '';
     const ca = entity.coverArt;
     if (ca && ca.sources && Array.isArray(ca.sources) && ca.sources.length > 0) {
-      coverUrl = ca.sources[0].url || '';
+      const sorted = [...ca.sources].sort((a, b) => (b.width || 0) - (a.width || 0));
+      coverUrl = sorted[0].url || ca.sources[0].url || '';
     }
     if (!coverUrl && entity.images && Array.isArray(entity.images) && entity.images.length > 0) {
-      coverUrl = entity.images[0].url || '';
+      const sorted = [...entity.images].sort((a, b) => (b.width || 0) - (a.width || 0));
+      coverUrl = sorted[0].url || entity.images[0].url || '';
     }
 
     // Fallback to official oEmbed for metadata
@@ -79,6 +94,8 @@ module.exports = async (req, res) => {
         }
       } catch (_) {}
     }
+
+    coverUrl = upgradeSpotifyImageUrl(coverUrl);
 
     // Parse tracklist
     const rawTracks = Array.isArray(entity.trackList) ? entity.trackList : [];
