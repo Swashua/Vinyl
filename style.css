@@ -30,9 +30,9 @@
   --bg-color: #07080b;
   --perspective: 1200px;
   --spine-width: clamp(18px, 2.2vw, 26px);
-  --spine-height: clamp(420px, 52vh, 560px);
+  --spine-height: clamp(450px, 56vh, 600px);
   --spine-depth: 10px;
-  --stage-size: clamp(540px, min(40vw, 78vh), 740px);
+  --stage-size: clamp(620px, min(48vw, 85vh), 860px);
   --ease-spring: cubic-bezier(0.16, 1, 0.3, 1);
   --ease-smooth: cubic-bezier(0.22, 1, 0.36, 1);
   --ease-out-back: cubic-bezier(0.18, 0.89, 0.32, 1.12);
@@ -752,54 +752,6 @@ html, body {
   pointer-events: none;
   box-shadow: inset 0 0 6px rgba(0, 0, 0, 0.5);
   z-index: 2;
-}
-
-/* Authentic spinning label typography */
-.disc-label-text {
-  position: absolute;
-  left: 50%;
-  transform: translateX(-50%);
-  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
-  font-weight: 800;
-  letter-spacing: 0.14em;
-  color: #ffffff;
-  text-shadow: 0 1px 3px rgba(0, 0, 0, 0.95), 0 0 8px rgba(0, 0, 0, 0.8);
-  text-transform: uppercase;
-  white-space: nowrap;
-  pointer-events: none;
-  z-index: 3;
-}
-
-.disc-label-top {
-  top: 14%;
-  font-size: 8.5px;
-}
-
-.disc-label-bottom {
-  bottom: 14%;
-  font-size: 6.5px;
-  letter-spacing: 0.18em;
-  color: rgba(255, 255, 255, 0.9);
-}
-
-.disc-label-dot {
-  position: absolute;
-  top: 50%;
-  transform: translateY(-50%);
-  width: 4px;
-  height: 4px;
-  border-radius: 50%;
-  background: rgba(255, 255, 255, 0.75);
-  box-shadow: 0 0 4px rgba(0, 0, 0, 0.8);
-  z-index: 3;
-}
-
-.disc-label-dot-left {
-  left: 10%;
-}
-
-.disc-label-dot-right {
-  right: 10%;
 }
 
 .spindle-hole {
