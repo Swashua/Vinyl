@@ -490,7 +490,7 @@
 
   // --- Calculate Screen Coordinates for Stage Album (Pixel-Perfect Center / Split) ---
   function getStageAlbumTargetRect(collapsed) {
-    const stageSize = parseFloat(getComputedStyle(document.documentElement).getPropertyValue('--stage-size')) || 460;
+    const stageSize = parseFloat(getComputedStyle(document.documentElement).getPropertyValue('--stage-size')) || 680;
     const w = window.innerWidth;
     const h = window.innerHeight;
     const isMobile = w <= 680;

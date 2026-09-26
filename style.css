@@ -29,10 +29,10 @@
 :root {
   --bg-color: #07080b;
   --perspective: 1200px;
-  --spine-width: clamp(18px, 2.2vw, 26px);
-  --spine-height: clamp(450px, 56vh, 600px);
+  --spine-width: clamp(20px, 2.4vw, 28px);
+  --spine-height: clamp(480px, 60vh, 660px);
   --spine-depth: 10px;
-  --stage-size: clamp(620px, min(48vw, 85vh), 860px);
+  --stage-size: clamp(680px, min(56vw, 84vh), 960px);
   --ease-spring: cubic-bezier(0.16, 1, 0.3, 1);
   --ease-smooth: cubic-bezier(0.22, 1, 0.36, 1);
   --ease-out-back: cubic-bezier(0.18, 0.89, 0.32, 1.12);
@@ -1817,7 +1817,7 @@ html, body {
 
 .stage-close-btn {
   position: absolute;
-  bottom: clamp(20px, 3.8vh, 44px);
+  bottom: clamp(14px, 2.2vh, 26px);
   left: 50%;
   display: flex;
   align-items: center;
