@@ -1277,6 +1277,15 @@
           'onStateChange': onYtPlayerStateChange,
           'onError': (e) => {
             console.warn('YouTube Audio Player error:', e);
+            if (activeAlbumTracks[currentTrackIdx]) {
+              playSynthFallbackTrack();
+              isFullSongPlaying = true;
+              updateAudioPlaybackUI(true);
+              setVinylSpinning(true);
+              if (tracklistBadgeText) {
+                tracklistBadgeText.textContent = `Playing: ${activeAlbumTracks[currentTrackIdx].title} (Lo-Fi)`;
+              }
+            }
           }
         }
       });
@@ -1303,6 +1312,11 @@
       updateAudioPlaybackUI(false);
       setVinylSpinning(false);
       stopProgressTracking();
+    } else if (event.data === YT.PlayerState.BUFFERING) {
+      setVinylSpinning(true);
+      if (tracklistBadgeText && activeAlbumTracks[currentTrackIdx]) {
+        tracklistBadgeText.textContent = `Buffering: ${activeAlbumTracks[currentTrackIdx].title}...`;
+      }
     } else if (event.data === YT.PlayerState.ENDED) {
       isFullSongPlaying = false;
       stopProgressTracking();
@@ -1360,14 +1374,17 @@
       .replace(/\(remastered.*?\)/gi, '')
       .trim();
 
-    const query = `${cleanArtist} ${cleanTitle} official audio`.trim();
+    const query = `${cleanArtist} ${cleanTitle} official audio`.trim() || cleanTitle || 'music';
 
-    // 1. Primary: Local Disc server API
+    // 1. Primary: Local Disc server / Vercel API
     try {
-      const res = await fetch(`/api/search-yt?q=${encodeURIComponent(query)}`);
+      const ctrl = new AbortController();
+      const t = setTimeout(() => ctrl.abort(), 3500);
+      const res = await fetch(`/api/search-yt?q=${encodeURIComponent(query)}`, { signal: ctrl.signal });
+      clearTimeout(t);
       if (res.ok) {
         const data = await res.json();
-        if (data.videoId) {
+        if (data && data.videoId) {
           track.videoId = data.videoId;
           return data.videoId;
         }
@@ -1376,7 +1393,7 @@
       console.warn('Local search-yt endpoint query error:', e);
     }
 
-    // 2. Fallback: Invidious public instances
+    // 2. Fallback: Invidious public instances (quick 2s timeout)
     const invidiousHosts = [
       'https://inv.nadeko.net',
       'https://invidious.nerdvpn.de',
@@ -1386,7 +1403,7 @@
     for (const host of invidiousHosts) {
       try {
         const invRes = await fetch(`${host}/api/v1/search?q=${encodeURIComponent(query)}&type=video`, {
-          signal: AbortSignal.timeout(3000)
+          signal: AbortSignal.timeout(2200)
         });
         if (invRes.ok) {
           const items = await invRes.json();
@@ -1676,7 +1693,11 @@
 
       row.addEventListener('click', (e) => {
         e.stopPropagation();
-        selectTrack(idx, true);
+        if (idx === currentTrackIdx && ytCurrentVideoId) {
+          togglePlayPause();
+        } else {
+          selectTrack(idx, true);
+        }
       });
 
       tracklistScrollArea.appendChild(row);
@@ -1720,25 +1741,78 @@
       tracklistBadgeText.textContent = `Loading: ${track.title}...`;
     }
 
-    // Resolve and play full song
-    const videoId = await fetchFullTrackVideoId(track);
+    // 1. Check if videoId is already known or fetch it
+    let videoId = track.videoId || null;
+    if (!videoId) {
+      videoId = await fetchFullTrackVideoId(track);
+    }
 
-    if (videoId && ytPlayer && ytPlayerReady) {
-      ytCurrentVideoId = videoId;
+    // Helper to safely play/cue track in YouTube Player
+    const loadAndPlayYt = (vid) => {
+      if (!ytPlayer || typeof ytPlayer.loadVideoById !== 'function') return false;
       try {
+        ytCurrentVideoId = vid;
         if (autoPlay) {
-          ytPlayer.loadVideoById(videoId);
+          ytPlayer.loadVideoById(vid);
           ytPlayer.playVideo();
           isFullSongPlaying = true;
           updateAudioPlaybackUI(true);
           setVinylSpinning(true);
         } else {
-          ytPlayer.cueVideoById(videoId);
+          ytPlayer.cueVideoById(vid);
           updateAudioPlaybackUI(false);
         }
-        return;
+        return true;
       } catch (err) {
         console.warn('Error loading video in YT Player:', err);
+        return false;
+      }
+    };
+
+    if (videoId) {
+      if (ytPlayer && ytPlayerReady) {
+        if (loadAndPlayYt(videoId)) return;
+      } else {
+        // YT iframe is initializing, poll briefly for ready state
+        let waited = 0;
+        const readyChecker = setInterval(() => {
+          waited += 80;
+          if (ytPlayer && ytPlayerReady) {
+            clearInterval(readyChecker);
+            loadAndPlayYt(videoId);
+          } else if (waited >= 2400) {
+            clearInterval(readyChecker);
+            if (autoPlay) {
+              playSynthFallbackTrack();
+              isFullSongPlaying = true;
+              updateAudioPlaybackUI(true);
+              setVinylSpinning(true);
+              if (tracklistBadgeText) {
+                tracklistBadgeText.textContent = `Playing: ${track.title} (Lo-Fi)`;
+              }
+            } else {
+              updateAudioPlaybackUI(false);
+              if (tracklistBadgeText) tracklistBadgeText.textContent = 'Tracklist';
+            }
+          }
+        }, 80);
+        return;
+      }
+    }
+
+    // Graceful fallback if video ID cannot be resolved
+    if (autoPlay) {
+      playSynthFallbackTrack();
+      isFullSongPlaying = true;
+      updateAudioPlaybackUI(true);
+      setVinylSpinning(true);
+      if (tracklistBadgeText) {
+        tracklistBadgeText.textContent = `Playing: ${track.title} (Lo-Fi)`;
+      }
+    } else {
+      updateAudioPlaybackUI(false);
+      if (tracklistBadgeText) {
+        tracklistBadgeText.textContent = 'Tracklist';
       }
     }
   }
@@ -1825,54 +1899,55 @@
     updateAudioPlaybackUI(false);
   }
 
-  // --- Play/Pause Toggle Helper ---
+  // --- Play/Pause Toggle Helper (Instant Pause & Resume) ---
   async function togglePlayPause() {
     initWebAudio();
 
-    if (ytPlayer && ytPlayerReady && ytCurrentVideoId) {
+    if (activeAlbumTracks.length === 0) return;
+
+    // 1. If currently playing -> Pause immediately!
+    if (isFullSongPlaying) {
+      isFullSongPlaying = false;
+      if (ytPlayer && ytPlayerReady && typeof ytPlayer.pauseVideo === 'function') {
+        try { ytPlayer.pauseVideo(); } catch (_) {}
+      }
+      if (nativeAudioPlayer && !nativeAudioPlayer.paused) {
+        try { nativeAudioPlayer.pause(); } catch (_) {}
+      }
+      stopSynthFallback();
+      stopProgressTracking();
+      setVinylSpinning(false);
+      updateAudioPlaybackUI(false);
+      return;
+    }
+
+    // 2. If paused and track is already loaded in YouTube player -> Resume immediately!
+    if (ytCurrentVideoId && ytPlayer && ytPlayerReady && typeof ytPlayer.playVideo === 'function') {
       try {
-        const state = ytPlayer.getPlayerState();
-        if (state === YT.PlayerState.PLAYING) {
-          ytPlayer.pauseVideo();
-          setVinylSpinning(false);
-          updateAudioPlaybackUI(false);
-        } else {
-          ytPlayer.playVideo();
-          setVinylSpinning(true);
-          updateAudioPlaybackUI(true);
-        }
+        ytPlayer.playVideo();
+        isFullSongPlaying = true;
+        setVinylSpinning(true);
+        updateAudioPlaybackUI(true);
+        startProgressTracking();
+        return;
+      } catch (err) {
+        console.warn('Error resuming YT player, falling back to selectTrack:', err);
+      }
+    }
+
+    // 3. If native audio element has a src loaded -> resume it
+    if (nativeAudioPlayer && nativeAudioPlayer.src && nativeAudioPlayer.paused) {
+      try {
+        await nativeAudioPlayer.play();
+        isFullSongPlaying = true;
+        setVinylSpinning(true);
+        updateAudioPlaybackUI(true);
         return;
       } catch (_) {}
     }
 
-    if (activeAlbumTracks.length > 0) {
-      selectTrack(currentTrackIdx, true);
-      return;
-    }
-
-    if (!nativeAudioPlayer) return;
-
-    if (nativeAudioPlayer.paused && !synthInterval) {
-      try {
-        if (nativeAudioPlayer.src) {
-          await nativeAudioPlayer.play();
-        } else {
-          playSynthFallbackTrack();
-        }
-        updateAudioPlaybackUI(true);
-        setVinylSpinning(true);
-      } catch (err) {
-        console.warn('Play error, switching to synth:', err);
-        playSynthFallbackTrack();
-        updateAudioPlaybackUI(true);
-        setVinylSpinning(true);
-      }
-    } else {
-      nativeAudioPlayer.pause();
-      stopSynthFallback();
-      updateAudioPlaybackUI(false);
-      setVinylSpinning(false);
-    }
+    // 4. Otherwise, select and load current track with autoplay
+    selectTrack(currentTrackIdx, true);
   }
 
   // Play button in hero row
