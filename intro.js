@@ -229,6 +229,7 @@
       // 6. Silky-Smooth Cinematic Crossfade into the 360° Rotunda
       setTimeout(() => {
         introSection.classList.add('is-entering');
+        document.body.classList.add('intro-revealed');
         if (viewport) {
           viewport.classList.add('intro-revealed');
         }

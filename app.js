@@ -1290,6 +1290,85 @@
   let ytPlayerReady = false;
   let ytCurrentVideoId = null;
   let ytProgressTimer = null;
+  let ytBufferingTimer = null;
+
+  function isYtPlaying() {
+    try {
+      return !!(ytPlayer && ytPlayerReady && typeof ytPlayer.getPlayerState === 'function' && ytPlayer.getPlayerState() === YT.PlayerState.PLAYING);
+    } catch (_) {
+      return false;
+    }
+  }
+
+  async function handlePlaybackStallOrError(track) {
+    if (!track) return;
+    console.warn('[Disc] YouTube playback stalled or errored for:', track.title);
+    if (ytBufferingTimer) {
+      clearTimeout(ytBufferingTimer);
+      ytBufferingTimer = null;
+    }
+
+    track.videoId = null;
+    ytCurrentVideoId = null;
+    try {
+      if (ytPlayer && typeof ytPlayer.stopVideo === 'function') {
+        ytPlayer.stopVideo();
+      }
+    } catch (_) {}
+
+    // 1. Try to play preview via HTML5 nativeAudioPlayer
+    let preview = track.previewUrl;
+    if (!preview && track.title) {
+      try {
+        const searchQ = `${track.artist} ${track.title}`.trim();
+        const itRes = await fetch(`https://itunes.apple.com/search?term=${encodeURIComponent(searchQ)}&entity=song&limit=1`);
+        if (itRes.ok) {
+          const itData = await itRes.json();
+          if (itData.results && itData.results.length > 0 && itData.results[0].previewUrl) {
+            preview = itData.results[0].previewUrl;
+            track.previewUrl = preview;
+          }
+        }
+      } catch (_) {}
+    }
+
+    if (preview && nativeAudioPlayer) {
+      try {
+        nativeAudioPlayer.src = preview;
+        nativeAudioPlayer.currentTime = 0;
+        await nativeAudioPlayer.play();
+        isFullSongPlaying = true;
+        updateAudioPlaybackUI(true);
+        setVinylSpinning(true);
+        startProgressTracking();
+        if (tracklistBadgeText) {
+          tracklistBadgeText.textContent = `Playing: ${track.title}`;
+        }
+        return;
+      } catch (err) {
+        console.warn('Fallback preview play error:', err);
+      }
+    }
+
+    // 2. If preview is not available or failed, seamlessly advance to next track!
+    if (activeAlbumTracks.length > 1) {
+      if (tracklistBadgeText) {
+        tracklistBadgeText.textContent = `Skipping to next track...`;
+      }
+      setTimeout(() => {
+        const nextIdx = getNextTrackIndex();
+        selectTrack(nextIdx, true);
+      }, 600);
+    } else {
+      isFullSongPlaying = false;
+      updateAudioPlaybackUI(false);
+      setVinylSpinning(false);
+      stopProgressTracking();
+      if (tracklistBadgeText) {
+        tracklistBadgeText.textContent = `Track unavailable`;
+      }
+    }
+  }
 
   function initYtPlayer() {
     if (typeof YT !== 'undefined' && YT.Player) {
@@ -1308,19 +1387,23 @@
     const hostEl = document.getElementById('ytPlayer');
     if (!hostEl) return;
     try {
+      const playerVars = {
+        'autoplay': 0,
+        'controls': 0,
+        'disablekb': 1,
+        'fs': 0,
+        'modestbranding': 1,
+        'playsinline': 1,
+        'rel': 0
+      };
+      if (window.location.origin && window.location.origin !== 'null' && !window.location.origin.startsWith('file:')) {
+        playerVars.origin = window.location.origin;
+      }
+
       ytPlayer = new YT.Player('ytPlayer', {
         height: '100%',
         width: '100%',
-        playerVars: {
-          'autoplay': 0,
-          'controls': 0,
-          'disablekb': 1,
-          'fs': 0,
-          'modestbranding': 1,
-          'playsinline': 1,
-          'rel': 0,
-          'origin': window.location.origin
-        },
+        playerVars: playerVars,
         events: {
           'onReady': onYtPlayerReady,
           'onStateChange': onYtPlayerStateChange,
@@ -1328,13 +1411,7 @@
             console.warn('YouTube Audio Player error:', e);
             const curTrack = activeAlbumTracks[currentTrackIdx];
             if (curTrack) {
-              curTrack.videoId = null;
-              ytCurrentVideoId = null;
-              if (curTrack.previewUrl && nativeAudioPlayer) {
-                nativeAudioPlayer.src = curTrack.previewUrl;
-                nativeAudioPlayer.currentTime = 0;
-                nativeAudioPlayer.play().catch(() => {});
-              }
+              handlePlaybackStallOrError(curTrack);
             }
           }
         }
@@ -1346,18 +1423,35 @@
 
   function onYtPlayerReady() {
     ytPlayerReady = true;
-    if (ytPlayer && typeof ytPlayer.setVolume === 'function') {
-      ytPlayer.setVolume(currentVolume);
+    if (ytPlayer) {
+      if (typeof ytPlayer.unMute === 'function') {
+        ytPlayer.unMute();
+      }
+      if (typeof ytPlayer.setVolume === 'function') {
+        ytPlayer.setVolume(currentVolume);
+      }
     }
   }
 
   function onYtPlayerStateChange(event) {
     if (event.data === YT.PlayerState.PLAYING) {
+      if (ytBufferingTimer) {
+        clearTimeout(ytBufferingTimer);
+        ytBufferingTimer = null;
+      }
       isFullSongPlaying = true;
+      // Smooth handoff: only pause HTML5 preview once YouTube audio has confirmed playback!
+      if (nativeAudioPlayer && !nativeAudioPlayer.paused) {
+        try { nativeAudioPlayer.pause(); } catch (_) {}
+      }
       updateAudioPlaybackUI(true);
       setVinylSpinning(true);
       startProgressTracking();
     } else if (event.data === YT.PlayerState.PAUSED) {
+      if (ytBufferingTimer) {
+        clearTimeout(ytBufferingTimer);
+        ytBufferingTimer = null;
+      }
       isFullSongPlaying = false;
       updateAudioPlaybackUI(false);
       setVinylSpinning(false);
@@ -1367,7 +1461,24 @@
       if (tracklistBadgeText && activeAlbumTracks[currentTrackIdx]) {
         tracklistBadgeText.textContent = `Buffering: ${activeAlbumTracks[currentTrackIdx].title}...`;
       }
+      // Watchdog: detect stuck buffering and recover automatically
+      if (ytBufferingTimer) clearTimeout(ytBufferingTimer);
+      ytBufferingTimer = setTimeout(() => {
+        if (!isYtPlaying() && isFullSongPlaying) {
+          console.warn('[Disc] Buffering watchdog triggered: attempting nudge...');
+          try { ytPlayer.playVideo(); } catch (_) {}
+          setTimeout(() => {
+            if (!isYtPlaying() && isFullSongPlaying) {
+              handlePlaybackStallOrError(activeAlbumTracks[currentTrackIdx]);
+            }
+          }, 1500);
+        }
+      }, 4500);
     } else if (event.data === YT.PlayerState.ENDED) {
+      if (ytBufferingTimer) {
+        clearTimeout(ytBufferingTimer);
+        ytBufferingTimer = null;
+      }
       isFullSongPlaying = false;
       stopProgressTracking();
       if (activeAlbumTracks.length > 1) {
@@ -1383,10 +1494,20 @@
   function startProgressTracking() {
     stopProgressTracking();
     ytProgressTimer = setInterval(() => {
-      if (!ytPlayer || !ytPlayerReady || !isFullSongPlaying) return;
+      if (!isFullSongPlaying) return;
       try {
-        const cur = ytPlayer.getCurrentTime() || 0;
-        const dur = ytPlayer.getDuration() || (activeAlbumTracks[currentTrackIdx]?.durationMs / 1000) || 0;
+        let cur = 0;
+        let dur = 0;
+        if (isYtPlaying()) {
+          cur = ytPlayer.getCurrentTime() || 0;
+          dur = ytPlayer.getDuration() || (activeAlbumTracks[currentTrackIdx]?.durationMs / 1000) || 0;
+        } else if (nativeAudioPlayer && !nativeAudioPlayer.paused && nativeAudioPlayer.duration) {
+          cur = nativeAudioPlayer.currentTime || 0;
+          dur = nativeAudioPlayer.duration || (activeAlbumTracks[currentTrackIdx]?.durationMs / 1000) || 0;
+        } else if (ytPlayer && ytPlayerReady && typeof ytPlayer.getCurrentTime === 'function') {
+          cur = ytPlayer.getCurrentTime() || 0;
+          dur = ytPlayer.getDuration() || (activeAlbumTracks[currentTrackIdx]?.durationMs / 1000) || 0;
+        }
         if (dur > 0) {
           const percent = Math.min(100, (cur / dur) * 100);
           if (progressBarFill) progressBarFill.style.width = `${percent}%`;
@@ -1800,13 +1921,21 @@
     if (!ytPlayer || typeof ytPlayer.loadVideoById !== 'function') return false;
     try {
       ytCurrentVideoId = vid;
+      if (ytBufferingTimer) {
+        clearTimeout(ytBufferingTimer);
+        ytBufferingTimer = null;
+      }
+
       if (autoPlay) {
         ytPlayer.loadVideoById({
           videoId: vid,
           startSeconds: 0
         });
-        if (typeof ytPlayer.seekTo === 'function') {
-          ytPlayer.seekTo(0, true);
+        if (typeof ytPlayer.unMute === 'function') {
+          ytPlayer.unMute();
+        }
+        if (typeof ytPlayer.setVolume === 'function') {
+          ytPlayer.setVolume(currentVolume);
         }
         ytPlayer.playVideo();
         isFullSongPlaying = true;
@@ -1815,8 +1944,21 @@
         startProgressTracking();
         const curTrack = activeAlbumTracks[currentTrackIdx];
         if (tracklistBadgeText && curTrack) {
-          tracklistBadgeText.textContent = `Playing: ${curTrack.title}`;
+          tracklistBadgeText.textContent = `Buffering: ${curTrack.title}...`;
         }
+
+        // Arm watchdog timer in case YouTube stalls during initial load
+        ytBufferingTimer = setTimeout(() => {
+          if (!isYtPlaying() && isFullSongPlaying) {
+            console.warn('[Disc] Video load watchdog triggered');
+            try { ytPlayer.playVideo(); } catch (_) {}
+            setTimeout(() => {
+              if (!isYtPlaying() && isFullSongPlaying) {
+                handlePlaybackStallOrError(activeAlbumTracks[currentTrackIdx]);
+              }
+            }, 1500);
+          }
+        }, 5000);
       } else {
         ytPlayer.cueVideoById({
           videoId: vid,
@@ -1858,7 +2000,7 @@
     });
 
     if (autoPlay && tracklistBadgeText) {
-      tracklistBadgeText.textContent = `Playing: ${track.title}`;
+      tracklistBadgeText.textContent = `Buffering: ${track.title}...`;
     }
 
     // Immediately glide the tracklist to the side with smooth animation when pressing play!
@@ -1874,9 +2016,6 @@
     let videoId = track.videoId || null;
     if (videoId && ytPlayer && ytPlayerReady) {
       if (loadAndPlayYt(videoId, autoPlay)) {
-        if (nativeAudioPlayer && !nativeAudioPlayer.paused) {
-          nativeAudioPlayer.pause();
-        }
         // Pre-fetch next track videoId in background for zero-delay auto-advance
         const nextTrack = activeAlbumTracks[(idx + 1) % activeAlbumTracks.length];
         if (nextTrack && !nextTrack.videoId) {
@@ -1895,6 +2034,7 @@
           isFullSongPlaying = true;
           updateAudioPlaybackUI(true);
           setVinylSpinning(true);
+          startProgressTracking();
         }).catch(() => {});
       } catch (_) {}
     }
@@ -1913,9 +2053,6 @@
     if (videoId) {
       if (ytPlayer && ytPlayerReady) {
         if (loadAndPlayYt(videoId, autoPlay)) {
-          if (nativeAudioPlayer && !nativeAudioPlayer.paused) {
-            nativeAudioPlayer.pause();
-          }
           const nextTrack = activeAlbumTracks[(idx + 1) % activeAlbumTracks.length];
           if (nextTrack && !nextTrack.videoId) {
             fetchFullTrackVideoId(nextTrack).catch(() => {});
@@ -1930,11 +2067,11 @@
           if (ytPlayer && ytPlayerReady) {
             clearInterval(readyChecker);
             loadAndPlayYt(videoId, autoPlay);
-            if (nativeAudioPlayer && !nativeAudioPlayer.paused) {
-              nativeAudioPlayer.pause();
-            }
           } else if (waited >= 3500) {
             clearInterval(readyChecker);
+            if (!isYtPlaying() && autoPlay) {
+              handlePlaybackStallOrError(track);
+            }
           }
         }, 60);
         return;
@@ -1957,11 +2094,21 @@
                 isFullSongPlaying = true;
                 updateAudioPlaybackUI(true);
                 setVinylSpinning(true);
+                startProgressTracking();
+                if (tracklistBadgeText) {
+                  tracklistBadgeText.textContent = `Playing: ${track.title}`;
+                }
               }).catch(() => {});
+              return;
             }
           }
         }
       } catch (_) {}
+    }
+
+    // 5. If neither YouTube nor preview is available and autoPlay was requested, handle stall gracefully
+    if (autoPlay && !videoId && !track.previewUrl) {
+      handlePlaybackStallOrError(track);
     }
   }
 
@@ -2016,6 +2163,10 @@
   }
 
   function resetNativePlayer() {
+    if (ytBufferingTimer) {
+      clearTimeout(ytBufferingTimer);
+      ytBufferingTimer = null;
+    }
     if (ytPlayer && typeof ytPlayer.stopVideo === 'function') {
       try { ytPlayer.stopVideo(); } catch (_) {}
     }
@@ -2050,6 +2201,10 @@
     // 1. If currently playing -> Pause immediately!
     if (isFullSongPlaying) {
       isFullSongPlaying = false;
+      if (ytBufferingTimer) {
+        clearTimeout(ytBufferingTimer);
+        ytBufferingTimer = null;
+      }
       if (ytPlayer && ytPlayerReady && typeof ytPlayer.pauseVideo === 'function') {
         try { ytPlayer.pauseVideo(); } catch (_) {}
       }
@@ -2069,15 +2224,27 @@
       }
     }
 
-    // 2. If paused and track is already loaded in YouTube player -> Resume from exact timestamp!
-    if (ytCurrentVideoId && ytPlayer && ytPlayerReady && typeof ytPlayer.playVideo === 'function') {
+    // 2. If track is already loaded/cued in YouTube player:
+    if (ytCurrentVideoId && ytPlayer && ytPlayerReady) {
       try {
-        ytPlayer.playVideo();
-        isFullSongPlaying = true;
-        setVinylSpinning(true);
-        updateAudioPlaybackUI(true);
-        startProgressTracking();
-        return;
+        const state = typeof ytPlayer.getPlayerState === 'function' ? ytPlayer.getPlayerState() : -1;
+        const curTime = typeof ytPlayer.getCurrentTime === 'function' ? ytPlayer.getCurrentTime() : 0;
+
+        // If paused mid-track and already buffered:
+        if (state === YT.PlayerState.PAUSED && curTime > 0.5) {
+          ytPlayer.playVideo();
+          isFullSongPlaying = true;
+          setVinylSpinning(true);
+          updateAudioPlaybackUI(true);
+          startProgressTracking();
+          return;
+        } else {
+          // If video was CUED, UNSTARTED, BUFFERING, or at 0:00:
+          // Call loadAndPlayYt so it actually loads and starts with watchdog!
+          if (loadAndPlayYt(ytCurrentVideoId, true)) {
+            return;
+          }
+        }
       } catch (err) {
         console.warn('Error resuming YT player, restarting track:', err);
       }
@@ -2090,6 +2257,7 @@
         isFullSongPlaying = true;
         setVinylSpinning(true);
         updateAudioPlaybackUI(true);
+        startProgressTracking();
         return;
       } catch (_) {}
     }
@@ -2154,7 +2322,7 @@
 
   if (nativeAudioPlayer) {
     nativeAudioPlayer.addEventListener('timeupdate', () => {
-      if (!nativeAudioPlayer.duration || isFullSongPlaying) return;
+      if (!nativeAudioPlayer.duration || isYtPlaying()) return;
       const cur = nativeAudioPlayer.currentTime || 0;
       const dur = nativeAudioPlayer.duration || (activeAlbumTracks[currentTrackIdx]?.durationMs / 1000) || 0;
       if (dur > 0) {
@@ -2180,13 +2348,12 @@
       }
     });
     nativeAudioPlayer.addEventListener('pause', () => {
-      if (!ytPlayer || !ytPlayerReady || !isFullSongPlaying) {
-        isFullSongPlaying = false;
+      if (!isYtPlaying() && !isFullSongPlaying) {
         updateAudioPlaybackUI(false);
       }
     });
     nativeAudioPlayer.addEventListener('ended', () => {
-      if (!ytPlayer || !ytPlayerReady || !isFullSongPlaying) {
+      if (!isYtPlaying()) {
         if (activeAlbumTracks.length > 1) {
           const nextIdx = getNextTrackIndex();
           selectTrack(nextIdx, true);
@@ -2194,6 +2361,7 @@
           isFullSongPlaying = false;
           updateAudioPlaybackUI(false);
           setVinylSpinning(false);
+          stopProgressTracking();
         }
       }
     });
@@ -2512,8 +2680,66 @@
     requestAnimationFrame(render);
   }
 
+  // ==========================================================================
+  // Space Background Color Theme Switcher
+  // ==========================================================================
+  function initSpaceThemes() {
+    const dock = document.getElementById('spaceThemeDock');
+    if (!dock) return;
+
+    const themeButtons = dock.querySelectorAll('.theme-circle-btn');
+    const skyLayers = {
+      midnight: document.querySelector('.cosmos-sky-midnight'),
+      amethyst: document.querySelector('.cosmos-sky-amethyst'),
+      aurora: document.querySelector('.cosmos-sky-aurora')
+    };
+
+    function applySpaceTheme(themeName) {
+      if (!themeName || !skyLayers[themeName]) themeName = 'midnight';
+
+      document.body.setAttribute('data-space-theme', themeName);
+
+      // Update active sky backdrop layer (smooth GPU opacity crossfade)
+      Object.entries(skyLayers).forEach(([key, el]) => {
+        if (el) {
+          el.classList.toggle('is-active', key === themeName);
+        }
+      });
+
+      // Update button active states and aria attributes
+      themeButtons.forEach(btn => {
+        const isActive = btn.dataset.spaceTheme === themeName;
+        btn.classList.toggle('is-active', isActive);
+        btn.setAttribute('aria-pressed', isActive ? 'true' : 'false');
+      });
+
+      try {
+        localStorage.setItem('disc_space_theme', themeName);
+      } catch (err) {
+        // Fallback if storage restricted
+      }
+    }
+
+    themeButtons.forEach(btn => {
+      btn.addEventListener('click', (e) => {
+        e.stopPropagation();
+        const theme = btn.dataset.spaceTheme;
+        applySpaceTheme(theme);
+      });
+    });
+
+    // Restore saved theme or default to midnight
+    let savedTheme = 'midnight';
+    try {
+      savedTheme = localStorage.getItem('disc_space_theme') || 'midnight';
+    } catch (e) {}
+
+    applySpaceTheme(savedTheme);
+  }
+
   // --- Bootstrap ---
   initCosmos();
+  initSpaceThemes();
   initCircle();
   initYtPlayer();
   requestAnimationFrame(updatePhysics);

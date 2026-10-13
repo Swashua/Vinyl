@@ -5,7 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Vinyl Showcase</title>
   <link rel="icon" id="favicon" type="image/png">
-  <link rel="stylesheet" href="style.css">
+  <link rel="stylesheet" href="style.css?v=1710">
   <script src="favicon.js"></script>
 </head>
 <body>
@@ -137,6 +137,9 @@
 
   <!-- Cosmic Universe Background: Infinite Seamless Starfield & Nebula Glow -->
   <div class="cosmos-backdrop" id="cosmosBackdrop" aria-hidden="true">
+    <div class="cosmos-sky cosmos-sky-midnight is-active"></div>
+    <div class="cosmos-sky cosmos-sky-amethyst"></div>
+    <div class="cosmos-sky cosmos-sky-aurora"></div>
     <div class="nebula-cloud nebula-cloud-1"></div>
     <div class="nebula-cloud nebula-cloud-2"></div>
     <canvas id="cosmosCanvas" class="cosmos-canvas"></canvas>
@@ -145,6 +148,66 @@
   <!-- Ambient backdrop lighting -->
   <div class="ambient-glow"></div>
   <div class="spotlight"></div>
+
+  <!-- Space Background Color Theme Switcher (Reveals when vinyls are showing) -->
+  <nav class="space-theme-dock" id="spaceThemeDock" aria-label="Space Background Theme">
+    <button type="button" class="theme-circle-btn is-active" data-space-theme="midnight" title="Midnight Void (Dark Space)" aria-label="Midnight Void Theme" onclick="window.setSpaceTheme && window.setSpaceTheme('midnight', event)">
+      <span class="theme-circle-swatch swatch-midnight"></span>
+    </button>
+    <button type="button" class="theme-circle-btn" data-space-theme="amethyst" title="Amethyst Nebula (Violet Space)" aria-label="Amethyst Nebula Theme" onclick="window.setSpaceTheme && window.setSpaceTheme('amethyst', event)">
+      <span class="theme-circle-swatch swatch-amethyst"></span>
+    </button>
+    <button type="button" class="theme-circle-btn" data-space-theme="aurora" title="Astral Aurora (Emerald Space)" aria-label="Astral Aurora Theme" onclick="window.setSpaceTheme && window.setSpaceTheme('aurora', event)">
+      <span class="theme-circle-swatch swatch-aurora"></span>
+    </button>
+  </nav>
+
+  <script>
+    (function() {
+      window.setSpaceTheme = function(theme, ev) {
+        if (ev) {
+          if (typeof ev.preventDefault === 'function') ev.preventDefault();
+          if (typeof ev.stopPropagation === 'function') ev.stopPropagation();
+        }
+        if (!theme) return;
+        document.body.setAttribute('data-space-theme', theme);
+
+        var skies = {
+          midnight: document.querySelector('.cosmos-sky-midnight'),
+          amethyst: document.querySelector('.cosmos-sky-amethyst'),
+          aurora: document.querySelector('.cosmos-sky-aurora')
+        };
+        for (var k in skies) {
+          if (skies[k]) {
+            if (k === theme) skies[k].classList.add('is-active');
+            else skies[k].classList.remove('is-active');
+          }
+        }
+
+        var buttons = document.querySelectorAll('.theme-circle-btn');
+        for (var i = 0; i < buttons.length; i++) {
+          var b = buttons[i];
+          var match = b.dataset.spaceTheme === theme;
+          if (match) b.classList.add('is-active');
+          else b.classList.remove('is-active');
+          b.setAttribute('aria-pressed', match ? 'true' : 'false');
+        }
+
+        try {
+          localStorage.setItem('disc_space_theme', theme);
+        } catch (e) {}
+      };
+
+      try {
+        var s = localStorage.getItem('disc_space_theme');
+        if (s) {
+          document.addEventListener('DOMContentLoaded', function() {
+            window.setSpaceTheme(s);
+          });
+        }
+      } catch (e) {}
+    })();
+  </script>
 
   <!-- Viewport: User is in the center of the circle of spines (Home page is 100% clean) -->
   <main class="showcase-viewport" id="viewport">
@@ -406,12 +469,12 @@
     </button>
   </div>
 
-    <!-- Invisible Background Audio Host for Full Song Playback (No video UI) -->
-    <div id="ytAudioHost" style="position:fixed;top:-9999px;left:-9999px;width:200px;height:200px;opacity:0.001;pointer-events:none;"><div id="ytPlayer"></div></div>
+    <!-- Invisible Background Audio Host for Full Song Playback (No video UI, on-screen to avoid Chromium offscreen throttling) -->
+    <div id="ytAudioHost" style="position:fixed;bottom:0;right:0;width:200px;height:200px;opacity:0.001;pointer-events:none;z-index:-1;"><div id="ytPlayer"></div></div>
 
     <!-- YouTube IFrame Player API for Full Song Playback -->
     <script src="https://www.youtube.com/iframe_api"></script>
-    <script src="intro.js"></script>
-    <script src="app.js"></script>
+    <script src="intro.js?v=1710"></script>
+    <script src="app.js?v=1710"></script>
 </body>
 </html>
