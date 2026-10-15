@@ -5,10 +5,10 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Vinyl Showcase</title>
   <link rel="icon" id="favicon" type="image/png">
-  <link rel="stylesheet" href="style.css?v=1710">
+  <link rel="stylesheet" href="style.css?v=20261016-ocean-1">
   <script src="favicon.js"></script>
 </head>
-<body>
+<body data-space-theme="sunset">
   <!-- Turntable Needle Drop Opening Experience -->
   <section class="turntable-intro" id="turntableIntro" aria-label="Turntable Entry Experience">
     <div class="intro-bg-glow"></div>
@@ -135,79 +135,30 @@
     </div>
   </section>
 
-  <!-- Cosmic Universe Background: Infinite Seamless Starfield & Nebula Glow -->
+  <!-- Three lighting scenes, crossfaded as complete environments. -->
   <div class="cosmos-backdrop" id="cosmosBackdrop" aria-hidden="true">
-    <div class="cosmos-sky cosmos-sky-midnight is-active"></div>
-    <div class="cosmos-sky cosmos-sky-amethyst"></div>
-    <div class="cosmos-sky cosmos-sky-aurora"></div>
-    <div class="nebula-cloud nebula-cloud-1"></div>
-    <div class="nebula-cloud nebula-cloud-2"></div>
+    <div class="cosmos-sky cosmos-sky-sunset is-active"><div class="scene-sun"></div><div class="scene-ocean ocean-sunset"><canvas class="ocean-surface" aria-hidden="true"></canvas></div></div>
+    <div class="cosmos-sky cosmos-sky-moon"><div class="scene-moon"></div><div class="scene-ocean ocean-moon"><canvas class="ocean-surface" aria-hidden="true"></canvas></div></div>
+    <div class="cosmos-sky cosmos-sky-starry"><div class="scene-milky-way"></div></div>
     <canvas id="cosmosCanvas" class="cosmos-canvas"></canvas>
   </div>
-
-  <!-- Ambient backdrop lighting -->
   <div class="ambient-glow"></div>
   <div class="spotlight"></div>
 
-  <!-- Space Background Color Theme Switcher (Reveals when vinyls are showing) -->
-  <nav class="space-theme-dock" id="spaceThemeDock" aria-label="Space Background Theme">
-    <button type="button" class="theme-circle-btn is-active" data-space-theme="midnight" title="Midnight Void (Dark Space)" aria-label="Midnight Void Theme" onclick="window.setSpaceTheme && window.setSpaceTheme('midnight', event)">
-      <span class="theme-circle-swatch swatch-midnight"></span>
+  <nav class="space-theme-dock" id="spaceThemeDock" aria-label="Scene lighting">
+    <button type="button" class="theme-circle-btn is-active" data-space-theme="sunset" title="Sunset lighting" aria-label="Sunset lighting" aria-pressed="true">
+      <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3 16h18M5 20h14M6 16a6 6 0 0 1 12 0M12 2v3M3.5 7.5l2 2M20.5 7.5l-2 2"/></svg>
+      <span>Sunset</span>
     </button>
-    <button type="button" class="theme-circle-btn" data-space-theme="amethyst" title="Amethyst Nebula (Violet Space)" aria-label="Amethyst Nebula Theme" onclick="window.setSpaceTheme && window.setSpaceTheme('amethyst', event)">
-      <span class="theme-circle-swatch swatch-amethyst"></span>
+    <button type="button" class="theme-circle-btn" data-space-theme="moon" title="Moonlight" aria-label="Moonlight" aria-pressed="false">
+      <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M20.5 14A8.5 8.5 0 0 1 10 3.5 8.5 8.5 0 1 0 20.5 14Z"/></svg>
+      <span>Moon</span>
     </button>
-    <button type="button" class="theme-circle-btn" data-space-theme="aurora" title="Astral Aurora (Emerald Space)" aria-label="Astral Aurora Theme" onclick="window.setSpaceTheme && window.setSpaceTheme('aurora', event)">
-      <span class="theme-circle-swatch swatch-aurora"></span>
+    <button type="button" class="theme-circle-btn" data-space-theme="starry" title="Starry night lighting" aria-label="Starry night lighting" aria-pressed="false">
+      <svg viewBox="0 0 24 24" aria-hidden="true"><path d="m10 3 1.8 5.2L17 10l-5.2 1.8L10 17l-1.8-5.2L3 10l5.2-1.8ZM19 3v4M17 5h4M19 15v6M16 18h6"/></svg>
+      <span>Starry night</span>
     </button>
   </nav>
-
-  <script>
-    (function() {
-      window.setSpaceTheme = function(theme, ev) {
-        if (ev) {
-          if (typeof ev.preventDefault === 'function') ev.preventDefault();
-          if (typeof ev.stopPropagation === 'function') ev.stopPropagation();
-        }
-        if (!theme) return;
-        document.body.setAttribute('data-space-theme', theme);
-
-        var skies = {
-          midnight: document.querySelector('.cosmos-sky-midnight'),
-          amethyst: document.querySelector('.cosmos-sky-amethyst'),
-          aurora: document.querySelector('.cosmos-sky-aurora')
-        };
-        for (var k in skies) {
-          if (skies[k]) {
-            if (k === theme) skies[k].classList.add('is-active');
-            else skies[k].classList.remove('is-active');
-          }
-        }
-
-        var buttons = document.querySelectorAll('.theme-circle-btn');
-        for (var i = 0; i < buttons.length; i++) {
-          var b = buttons[i];
-          var match = b.dataset.spaceTheme === theme;
-          if (match) b.classList.add('is-active');
-          else b.classList.remove('is-active');
-          b.setAttribute('aria-pressed', match ? 'true' : 'false');
-        }
-
-        try {
-          localStorage.setItem('disc_space_theme', theme);
-        } catch (e) {}
-      };
-
-      try {
-        var s = localStorage.getItem('disc_space_theme');
-        if (s) {
-          document.addEventListener('DOMContentLoaded', function() {
-            window.setSpaceTheme(s);
-          });
-        }
-      } catch (e) {}
-    })();
-  </script>
 
   <!-- Viewport: User is in the center of the circle of spines (Home page is 100% clean) -->
   <main class="showcase-viewport" id="viewport">
@@ -271,8 +222,8 @@
               </svg>
             </div>
             <div class="empty-search-text">
-              <h3 class="empty-search-title">Empty Vinyl</h3>
-              <p class="empty-search-desc">Paste a Spotify album link to load its artwork and play songs</p>
+              <h3 class="empty-search-title">Your next favorite record</h3>
+              <p class="empty-search-desc">Add a Spotify album or playlist to this sleeve.</p>
             </div>
           </div>
           
@@ -313,7 +264,7 @@
             </div>
           </button>
 
-          <aside class="stage-music-tab" id="stageMusicTab" aria-label="Music Tab">
+          <aside class="stage-music-tab" id="stageMusicTab" aria-label="Tracklist and player">
             <div class="music-playing-state" id="musicPlayingState">
               <div class="music-tab-header">
                 <div class="header-top-row">
@@ -474,7 +425,7 @@
 
     <!-- YouTube IFrame Player API for Full Song Playback -->
     <script src="https://www.youtube.com/iframe_api"></script>
-    <script src="intro.js?v=1710"></script>
-    <script src="app.js?v=1710"></script>
+    <script src="intro.js?v=20261016-ocean-1"></script>
+    <script src="app.js?v=20261016-ocean-1"></script>
 </body>
 </html>

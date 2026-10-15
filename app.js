@@ -529,47 +529,27 @@
 
   // --- Calculate Screen Coordinates for Stage Album (Pixel-Perfect Center / Split) ---
   function getStageAlbumTargetRect(collapsed) {
-    const isCentered = collapsed || (stageContentWrap && stageContentWrap.classList.contains('mode-empty'));
+    const empty = stageContentWrap.classList.contains('mode-empty');
+    const centered = collapsed || empty;
     const w = window.innerWidth;
     const h = window.innerHeight;
-    const isMobile = w <= 680;
-
-    let targetLeft, targetTop, stageSize;
-
-    if (isMobile) {
-      // Mobile calculation: scale proportionally to phone viewport so vinyl is crisp, large, and centered!
-      const mobileSize = isCentered
-        ? Math.min(w * 0.78, h * 0.42, 310)
-        : Math.min(w * 0.68, h * 0.36, 260);
-
-      stageSize = Math.max(220, Math.round(mobileSize));
-      targetLeft = Math.round((w - stageSize) / 2);
-      targetTop = isCentered
-        ? Math.round(Math.max(50, (h - stageSize) / 2 - 25))
-        : Math.round(Math.max(45, (h - stageSize) / 2 - 40));
-    } else {
-      const cssVarName = isCentered ? '--stage-size-center' : '--stage-size-split';
-      const computedVal = parseFloat(getComputedStyle(document.documentElement).getPropertyValue(cssVarName));
-      stageSize = computedVal || (isCentered ? 760 : 490);
-
-      if (isCentered) {
-        // Centered Mode: Large size, vinyl disc centered over the cover, center jacket directly in viewport
-        targetLeft = (w - stageSize) / 2;
-        targetTop = (h - stageSize) / 2;
-      } else {
-        // Split 50/50 Loaded Mode: Compact size, visual span (jacket + pulled disc) centered in the LEFT 50%
-        const halfW = w / 2;
-        const totalVisualSpan = stageSize * 1.48;
-        targetLeft = Math.max(28, (halfW - totalVisualSpan) / 2);
-        targetTop = (h - stageSize) / 2;
-      }
-    }
-
-    return {
-      left: Math.round(targetLeft),
-      top: Math.round(targetTop),
-      size: Math.round(stageSize)
-    };
+    const mobile = w <= 680;
+    // Include the exposed disc in the footprint, not just the square jacket.
+    const footprint = mobile || collapsed ? 1 : 1.441;
+    const availableWidth = centered ? w - 64 : w * 0.56 - 88;
+    const size = Math.max(120, Math.floor(Math.min(
+      centered ? 350 : 380,
+      availableWidth / footprint,
+      empty ? h - 350 : h * 0.52
+    )));
+    const left = centered
+      ? (w - size * footprint) / 2
+      : (w * 0.56 - size * footprint) / 2;
+    const top = empty
+      ? Math.max(88, (h - size - 190) / 2)
+      : Math.max(90, (h - size) / 2 - 12);
+    stageContentWrap.style.setProperty('--empty-search-top', `${Math.round(top + size + 26)}px`);
+    return { left: Math.round(left), top: Math.round(top), size };
   }
 
   function updateStageAlbumPosition(animate = true) {
@@ -700,7 +680,7 @@
       const calculatedVel = (pxPerMs * 16.67 / window.innerWidth) * 180;
 
       // Inverted so physical momentum matches the direction of the swipe
-      angularVelocity = Math.max(Math.min(-calculatedVel, 48), -48);
+      angularVelocity = Math.max(Math.min(-calculatedVel, 12), -12);
     } else {
       angularVelocity = 0;
     }
@@ -709,12 +689,18 @@
   }
 
   // --- Physics Loop for 360° Circular Rotation with Inertia ---
-  function updatePhysics() {
+  const motionPreference = window.matchMedia('(prefers-reduced-motion: reduce)');
+  let previousPhysicsTime = null;
+  function updatePhysics(now) {
+    const frameStep = previousPhysicsTime === null ? 1 : Math.min((now - previousPhysicsTime) / (1000 / 60), 3);
+    previousPhysicsTime = now;
     if (!activeAlbum) {
       if (!isDragging) {
-        currentRotation += angularVelocity;
-        // Smooth physical coasting friction (0.965 = realistic rotational drag)
-        angularVelocity *= 0.965;
+        // Integrate exponential drag so momentum is consistent at every refresh rate.
+        const drag = 0.955;
+        const decay = Math.pow(drag, frameStep);
+        currentRotation += motionPreference.matches ? angularVelocity : angularVelocity * (1 - decay) / (1 - drag);
+        angularVelocity *= motionPreference.matches ? 0 : decay;
 
         if (Math.abs(angularVelocity) < 0.008) {
           angularVelocity = 0;
@@ -734,8 +720,8 @@
     e.preventDefault();
 
     const delta = Math.abs(e.deltaX) > Math.abs(e.deltaY) ? e.deltaX : e.deltaY;
-    angularVelocity += delta * 0.025;
-    angularVelocity = Math.max(Math.min(angularVelocity, 30), -30);
+    angularVelocity += delta * 0.016;
+    angularVelocity = Math.max(Math.min(angularVelocity, 10), -10);
   }
 
   // --- Keyboard Navigation ---
@@ -829,6 +815,7 @@
     // Activate stage overlay
     stageBackdrop.classList.add('is-active');
     inspectionStage.classList.add('is-active');
+    inspectionStage.setAttribute('aria-hidden', 'false');
 
     // Force layout reflow
     void stageAlbum.offsetWidth;
@@ -850,7 +837,7 @@
     stageAlbum.style.width = `${target.size}px`;
     stageAlbum.style.height = `${target.size}px`;
     stageAlbum.classList.add('is-expanded');
-    stageAlbum.style.transform = 'translate3d(0, 0, 180px) rotateY(0deg) scale(1)';
+    stageAlbum.style.transform = 'translate3d(0, 0, 0) rotateY(0deg) scale(1)';
 
     // 7. Slide vinyl disc out smoothly (at rest until play is pressed)
     setTimeout(() => {
@@ -888,6 +875,7 @@
     // 2. Hide backdrop and stage
     stageBackdrop.classList.remove('is-active');
     inspectionStage.classList.remove('is-active');
+    inspectionStage.setAttribute('aria-hidden', 'true');
 
     // 3. Return to exact circle shelf slot
     setTimeout(() => {
@@ -2582,7 +2570,7 @@
       const startY = Math.random() * height * 0.35;
       const length = Math.random() * 150 + 110;
       const angle = (Math.PI / 4) + (Math.random() * 0.26 - 0.13);
-      const speed = Math.random() * 7 + 12;
+      const speed = Math.random() * 3 + 7;
 
       meteors.push({
         x: startX,
@@ -2598,11 +2586,14 @@
     let lastMeteorTime = performance.now();
     let meteorInterval = Math.random() * 8000 + 8000;
 
+    let previousRenderTime = null;
     function render(now) {
+      const frameStep = previousRenderTime === null ? 1 : Math.min((now - previousRenderTime) / (1000 / 60), 3);
+      previousRenderTime = now;
       ctx.clearRect(0, 0, width, height);
 
       // Continuous, infinite parallax shift (no modulo reset, totally seamless)
-      const rot = (typeof currentRotation === 'number') ? currentRotation : 0;
+      const rot = !motionPreference.matches && typeof currentRotation === 'number' ? currentRotation : 0;
       const rotShift = rot * 1.1;
 
       // 1. Draw Steady Stars (No blinking, calm constant starlight, infinite seamless wrapping)
@@ -2631,17 +2622,19 @@
       }
 
       // 2. Draw Meteors / Shooting Stars
-      if (now - lastMeteorTime > meteorInterval) {
+      const isStarryNight = document.body.dataset.spaceTheme === 'starry';
+      if (isStarryNight && !motionPreference.matches && now - lastMeteorTime > meteorInterval) {
         spawnMeteor();
         lastMeteorTime = now;
         meteorInterval = Math.random() * 9000 + 7000;
       }
 
+      if (motionPreference.matches || !isStarryNight) meteors = [];
       for (let m = meteors.length - 1; m >= 0; m--) {
         const met = meteors[m];
-        met.x += met.dx;
-        met.y += met.dy;
-        met.life -= met.decay;
+        met.x += met.dx * frameStep;
+        met.y += met.dy * frameStep;
+        met.life -= met.decay * frameStep;
 
         if (met.life <= 0 || met.x > width + 200 || met.y > height + 200) {
           meteors.splice(m, 1);
@@ -2681,7 +2674,7 @@
   }
 
   // ==========================================================================
-  // Space Background Color Theme Switcher
+  // Lighting Scene Switcher
   // ==========================================================================
   function initSpaceThemes() {
     const dock = document.getElementById('spaceThemeDock');
@@ -2689,13 +2682,13 @@
 
     const themeButtons = dock.querySelectorAll('.theme-circle-btn');
     const skyLayers = {
-      midnight: document.querySelector('.cosmos-sky-midnight'),
-      amethyst: document.querySelector('.cosmos-sky-amethyst'),
-      aurora: document.querySelector('.cosmos-sky-aurora')
+      sunset: document.querySelector('.cosmos-sky-sunset'),
+      moon: document.querySelector('.cosmos-sky-moon'),
+      starry: document.querySelector('.cosmos-sky-starry')
     };
 
     function applySpaceTheme(themeName) {
-      if (!themeName || !skyLayers[themeName]) themeName = 'midnight';
+      if (!Object.prototype.hasOwnProperty.call(skyLayers, themeName)) themeName = 'sunset';
 
       document.body.setAttribute('data-space-theme', themeName);
 
@@ -2714,7 +2707,7 @@
       });
 
       try {
-        localStorage.setItem('disc_space_theme', themeName);
+        localStorage.setItem('disc_lighting_scene', themeName);
       } catch (err) {
         // Fallback if storage restricted
       }
@@ -2728,17 +2721,95 @@
       });
     });
 
-    // Restore saved theme or default to midnight
-    let savedTheme = 'midnight';
+    // Restore saved theme or default to Sunset
+    let savedTheme = 'sunset';
     try {
-      savedTheme = localStorage.getItem('disc_space_theme') || 'midnight';
+      savedTheme = localStorage.getItem('disc_lighting_scene') || 'sunset';
     } catch (e) {}
 
     applySpaceTheme(savedTheme);
   }
 
+  // Perspective water surface: travelling swells, small ripples, and broken light paths.
+  function initOcean() {
+    const surfaces = [...document.querySelectorAll('.ocean-surface')].map(canvas => ({
+      canvas, ctx: canvas.getContext('2d', { alpha: false }), pixels: null,
+      sunset: canvas.closest('.ocean-sunset') !== null
+    })).filter(surface => surface.ctx);
+    let lastFrame = -Infinity;
+    function resize() {
+      surfaces.forEach(surface => {
+        const bounds = surface.canvas.getBoundingClientRect();
+        surface.canvas.width = Math.min(720, Math.round(bounds.width * 0.65));
+        surface.canvas.height = Math.min(190, Math.round(bounds.height * 0.8));
+        surface.pixels = surface.ctx.createImageData(surface.canvas.width, surface.canvas.height);
+      });
+      lastFrame = -Infinity;
+    }
+    function render(now) {
+      requestAnimationFrame(render);
+      if (document.hidden || now - lastFrame < 1000 / 30) return;
+      if (motionPreference.matches && lastFrame !== -Infinity) return;
+      lastFrame = now;
+      const theme = document.body.dataset.spaceTheme;
+      const t = motionPreference.matches ? 0 : now * 0.00022;
+      surfaces.forEach(surface => {
+        if ((surface.sunset ? 'sunset' : 'moon') !== theme) return;
+        const { width: w, height: h } = surface.canvas;
+        const data = surface.pixels.data;
+        const lightX = surface.sunset ? 0.18 : 0.78;
+        const light = surface.sunset ? [244, 162, 79] : [164, 199, 228];
+        for (let y = 0; y < h; y++) {
+          const v = y / Math.max(1, h - 1);
+          const depth = 1 / (v + 0.13);
+          const fade = Math.pow(1 - v, 0.65);
+          const z = depth * 8;
+          const spread = (surface.sunset ? 0.035 : 0.018) + v * (surface.sunset ? 0.13 : 0.08);
+          const base = surface.sunset
+            ? [23 + fade * 72, 27 + fade * 34, 38 + fade * 23]
+            : [7 + fade * 22, 16 + fade * 27, 29 + fade * 34];
+          for (let x = 0; x < w; x++) {
+            const u = x / w;
+            const wx = (u - 0.5) * depth * 22;
+            // Different wavelengths/directions avoid repeating parallel stripes.
+            const a = wx * 0.62 + z * 2.1 - t * 2.2;
+            const b = wx * 1.6 - z * 3.7 + t * 1.5;
+            const c = wx * 3.8 + z * 5.4 - t * 3.1;
+            const d = wx * 7.1 - z * 9.2 + t * 2.6;
+            const swell = Math.sin(a) * 0.52 + Math.sin(b) * 0.28;
+            const ripple = Math.sin(c) * 0.14 + Math.sin(d) * 0.06;
+            const slope = Math.cos(a) * 0.45 - Math.cos(b) * 0.36 + Math.cos(c) * 0.22 - Math.cos(d) * 0.12;
+            const displacement = (swell + ripple) * (0.012 + v * 0.025);
+            const distance = (u - lightX - displacement) / spread;
+            const path = Math.exp(-distance * distance * 1.8);
+            const facets = Math.pow(Math.max(0, 1 - Math.abs(slope - 0.12) * 1.8), 9);
+            const glitter = path * (0.08 + facets * 1.45) * (0.8 - v * 0.32);
+            const crest = Math.max(0, swell * 0.5 + ripple) * (3 + v * 7);
+            const trough = Math.max(0, -slope) * (2 + v * 5);
+            const index = (y * w + x) * 4;
+            for (let channel = 0; channel < 3; channel++) {
+              const value = base[channel] + crest - trough + light[channel] * glitter;
+              data[index + channel] = Math.min(255, Math.max(0, value));
+            }
+            data[index + 3] = 255;
+          }
+        }
+        surface.ctx.putImageData(surface.pixels, 0, 0);
+      });
+    }
+    window.addEventListener('resize', resize, { passive: true });
+    // Redraw a still surface on scene changes when reduced motion is enabled.
+    new MutationObserver(() => { lastFrame = -Infinity; }).observe(document.body, {
+      attributes: true, attributeFilter: ['data-space-theme']
+    });
+    motionPreference.addEventListener('change', () => { lastFrame = -Infinity; });
+    resize();
+    requestAnimationFrame(render);
+  }
+
   // --- Bootstrap ---
   initCosmos();
+  initOcean();
   initSpaceThemes();
   initCircle();
   initYtPlayer();

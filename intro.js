@@ -140,22 +140,28 @@
     let currentTiltY = 0;
     let tiltAnimFrame = null;
 
+    const motionPreference = window.matchMedia('(prefers-reduced-motion: reduce)');
+    let previousTiltTime = null;
     function handleMouseMove(e) {
-      if (isDropping) return;
+      if (isDropping || motionPreference.matches) return;
       const xRatio = (e.clientX / window.innerWidth) - 0.5;
       const yRatio = (e.clientY / window.innerHeight) - 0.5;
-      targetTiltX = xRatio * 14; // max 7 deg horizontal tilt
-      targetTiltY = -yRatio * 12; // max 6 deg vertical tilt
+      targetTiltX = xRatio * 8; // max 4 deg horizontal tilt
+      targetTiltY = -yRatio * 6; // max 3 deg vertical tilt
     }
 
-    function updateTiltPhysics() {
-      if (!isDropping) {
-        currentTiltX += (targetTiltX - currentTiltX) * 0.08;
-        currentTiltY += (targetTiltY - currentTiltY) * 0.08;
+    function updateTiltPhysics(now) {
+      const frameStep = previousTiltTime === null ? 1 : Math.min((now - previousTiltTime) / (1000 / 60), 3);
+      previousTiltTime = now;
+      const follow = 1 - Math.pow(0.92, frameStep);
+      const settle = 1 - Math.pow(0.88, frameStep);
+      if (!isDropping && !motionPreference.matches) {
+        currentTiltX += (targetTiltX - currentTiltX) * follow;
+        currentTiltY += (targetTiltY - currentTiltY) * follow;
       } else {
         // Return smoothly to flat alignment during needle drop
-        currentTiltX += (0 - currentTiltX) * 0.12;
-        currentTiltY += (0 - currentTiltY) * 0.12;
+        currentTiltX += (0 - currentTiltX) * settle;
+        currentTiltY += (0 - currentTiltY) * settle;
       }
       if (turntableChassis) {
         turntableChassis.style.setProperty('--tilt-x', `${currentTiltX.toFixed(2)}deg`);
